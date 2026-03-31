@@ -156,7 +156,11 @@ fn zip_fields(
         }
     }
 
-    if entry.def.dimensions.len() != keys.len() {
+    // MT_ transforms use a legacy format where measures are embedded
+    // differently — mismatches are expected, not worth warning about.
+    let is_legacy = entry.def.name.starts_with("MT_");
+
+    if !is_legacy && entry.def.dimensions.len() != keys.len() {
         warn!(
             transform = %entry.def.name,
             dimensions = entry.def.dimensions.len(),
@@ -165,7 +169,7 @@ fn zip_fields(
         );
     }
 
-    if entry.def.measures.len() != values.len() {
+    if !is_legacy && entry.def.measures.len() != values.len() {
         warn!(
             transform = %entry.def.name,
             measures = entry.def.measures.len(),

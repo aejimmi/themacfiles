@@ -1,6 +1,6 @@
 [package]
-name = "macknows"
-description = "Apple telemetry decoder — reads analyticsd SQLite databases and produces human-readable reports"
+name = "macstalker"
+description = "See what Apple collects about you — decodes analyticsd SQLite databases into human-readable reports"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,11 +10,11 @@ license.workspace = true
 workspace = true
 
 [[bin]]
-name = "macknows"
+name = "macstalker"
 path = "src/main.rs"
 
 [lib]
-name = "macknows"
+name = "macstalker"
 path = "src/lib.rs"
 
 [dependencies]

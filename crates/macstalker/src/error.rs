@@ -1,10 +1,10 @@
-//! Error types for the macknows library.
+//! Error types for the macstalker library.
 
 use std::path::PathBuf;
 
-/// All errors that can occur in macknows library operations.
+/// All errors that can occur in macstalker library operations.
 #[derive(Debug, thiserror::Error)]
-pub enum MacknowsError {
+pub enum MacstalkerError {
     /// A required database file was not found at the expected path.
     #[error("database not found: {path}")]
     DatabaseNotFound {
@@ -48,5 +48,5 @@ pub enum MacknowsError {
     },
 }
 
-/// Convenience alias for macknows results.
-pub type Result<T> = std::result::Result<T, MacknowsError>;
+/// Convenience alias for macstalker results.
+pub type Result<T> = std::result::Result<T, MacstalkerError>;

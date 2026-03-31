@@ -120,8 +120,40 @@ pub struct Insights {
     pub wifi_scans: usize,
     /// Executable binaries measured by syspolicy.
     pub executables_measured: usize,
+    /// Fingerprinted binaries with CDHash and signing ID.
+    pub fingerprinted_binaries: Vec<BinaryFingerprint>,
     /// Behavioral profiling domains and item counts.
     pub profiling_items: u64,
+    /// Data pipeline: where collected data gets sent.
+    pub data_sinks: Vec<SinkInfo>,
+    /// Sampling: how many transforms are actively collected vs sampled out.
+    pub sampling: SamplingInfo,
+    /// Event enrichment rules that inject device state into events.
+    pub enrichment_rules: usize,
+    /// Total event types defined in config.
+    pub total_event_types: usize,
+    /// Transforms disabled by Apple (hit budget cap).
+    pub budget_disabled: Vec<String>,
+}
+
+/// Where collected data goes.
+#[derive(Debug, Clone, Serialize)]
+pub struct SinkInfo {
+    /// Sink name (Daily, Never, 90Day, da2).
+    pub name: String,
+    /// Number of transforms feeding this sink.
+    pub transform_count: usize,
+}
+
+/// Sampling breakdown across transforms.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SamplingInfo {
+    /// Transforms actively collecting on this device.
+    pub collecting: usize,
+    /// Transforms this device was sampled OUT of.
+    pub sampled_out: usize,
+    /// Transforms with no sampling (always collected).
+    pub unsampled: usize,
 }
 
 /// An app tracked by appUsage.
@@ -135,6 +167,21 @@ pub struct AppInsight {
     pub active_seconds: i64,
     /// Total uptime in seconds.
     pub uptime_seconds: i64,
+    /// Whether the app was used in the foreground.
+    pub foreground: bool,
+    /// Number of times the user switched to this app.
+    pub activations: i64,
+    /// Number of times the app was launched.
+    pub launches: i64,
+}
+
+/// A binary fingerprinted by syspolicy ExecutableMeasurement.
+#[derive(Debug, Clone, Serialize)]
+pub struct BinaryFingerprint {
+    /// Content hash of the binary (CDHash).
+    pub cdhash: String,
+    /// Code-signing identifier.
+    pub signing_id: String,
 }
 
 /// An ML model loaded on-device.

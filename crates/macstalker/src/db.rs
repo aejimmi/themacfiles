@@ -1,7 +1,7 @@
 //! SQLite query functions for reading analyticsd databases.
 
 use crate::category::categorize;
-use crate::error::{MacknowsError, Result};
+use crate::error::{MacstalkerError, Result};
 use crate::schema::{CollectionPeriod, ConfigInfo, EventInfo, TransformDef, TransformStateRow};
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use tracing::warn;
 pub fn load_transform_defs(conn: &Connection) -> Result<HashMap<i64, TransformDef>> {
     let mut stmt = conn
         .prepare("SELECT transform_id, transform_def FROM transforms")
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare transforms query".into(),
         })?;
@@ -25,14 +25,14 @@ pub fn load_transform_defs(conn: &Connection) -> Result<HashMap<i64, TransformDe
             let def_json: String = row.get(1)?;
             Ok((id, def_json))
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query transforms".into(),
         })?;
 
     let mut defs = HashMap::new();
     for row in rows {
-        let (id, def_json) = row.map_err(|e| MacknowsError::Query {
+        let (id, def_json) = row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read transform row".into(),
         })?;
@@ -59,7 +59,7 @@ pub fn load_transform_defs(conn: &Connection) -> Result<HashMap<i64, TransformDe
 pub fn load_transform_uuids(conn: &Connection) -> Result<HashMap<i64, String>> {
     let mut stmt = conn
         .prepare("SELECT transform_id, transform_uuid FROM transforms")
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare transform_uuid query".into(),
         })?;
@@ -70,14 +70,14 @@ pub fn load_transform_uuids(conn: &Connection) -> Result<HashMap<i64, String>> {
             let uuid: String = row.get(1)?;
             Ok((id, uuid))
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query transform_uuids".into(),
         })?;
 
     let mut map = HashMap::new();
     for row in rows {
-        let (id, uuid) = row.map_err(|e| MacknowsError::Query {
+        let (id, uuid) = row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read transform_uuid row".into(),
         })?;
@@ -90,7 +90,7 @@ pub fn load_transform_uuids(conn: &Connection) -> Result<HashMap<i64, String>> {
 pub fn load_event_names(conn: &Connection) -> Result<HashMap<i64, String>> {
     let mut stmt = conn
         .prepare("SELECT event_id, event_name FROM events")
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare events query".into(),
         })?;
@@ -101,14 +101,14 @@ pub fn load_event_names(conn: &Connection) -> Result<HashMap<i64, String>> {
             let name: String = row.get(1)?;
             Ok((id, name))
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query events".into(),
         })?;
 
     let mut map = HashMap::new();
     for row in rows {
-        let (id, name) = row.map_err(|e| MacknowsError::Query {
+        let (id, name) = row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read event row".into(),
         })?;
@@ -121,7 +121,7 @@ pub fn load_event_names(conn: &Connection) -> Result<HashMap<i64, String>> {
 pub fn load_transform_events(conn: &Connection) -> Result<HashMap<i64, Vec<i64>>> {
     let mut stmt = conn
         .prepare("SELECT event_id, transform_id FROM transform_events")
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare transform_events query".into(),
         })?;
@@ -132,14 +132,14 @@ pub fn load_transform_events(conn: &Connection) -> Result<HashMap<i64, Vec<i64>>
             let transform_id: i64 = row.get(1)?;
             Ok((event_id, transform_id))
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query transform_events".into(),
         })?;
 
     let mut map: HashMap<i64, Vec<i64>> = HashMap::new();
     for row in rows {
-        let (event_id, transform_id) = row.map_err(|e| MacknowsError::Query {
+        let (event_id, transform_id) = row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read transform_event row".into(),
         })?;
@@ -158,7 +158,7 @@ pub fn load_config_info(conn: &Connection) -> Result<HashMap<i64, ConfigInfo>> {
              FROM config_transforms ct \
              JOIN configs c ON ct.config_id = c.config_id",
         )
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare config_info query".into(),
         })?;
@@ -170,14 +170,14 @@ pub fn load_config_info(conn: &Connection) -> Result<HashMap<i64, ConfigInfo>> {
             let config_enabled: bool = row.get(2)?;
             Ok((transform_id, config_type, config_enabled))
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query config_info".into(),
         })?;
 
     let mut map = HashMap::new();
     for row in rows {
-        let (tid, ctype, enabled) = row.map_err(|e| MacknowsError::Query {
+        let (tid, ctype, enabled) = row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read config_info row".into(),
         })?;
@@ -202,7 +202,7 @@ pub fn load_transform_states(conn: &Connection) -> Result<Vec<TransformStateRow>
              JOIN transform_metadata tm \
                ON ts.transform_metadata_id = tm.transform_metadata_id",
         )
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare transform_states query".into(),
         })?;
@@ -216,14 +216,14 @@ pub fn load_transform_states(conn: &Connection) -> Result<Vec<TransformStateRow>
                 event_count: row.get::<_, i64>(3).map(|v| v as u64)?,
             })
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query transform_states".into(),
         })?;
 
     let mut result = Vec::new();
     for row in rows {
-        result.push(row.map_err(|e| MacknowsError::Query {
+        result.push(row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read transform_state row".into(),
         })?);
@@ -241,7 +241,7 @@ pub fn load_events_with_counts(conn: &Connection) -> Result<Vec<EventInfo>> {
              GROUP BY e.event_id \
              ORDER BY tc DESC",
         )
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare events_with_counts query".into(),
         })?;
@@ -252,14 +252,14 @@ pub fn load_events_with_counts(conn: &Connection) -> Result<Vec<EventInfo>> {
             let count: u32 = row.get(1)?;
             Ok((name, count))
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query events_with_counts".into(),
         })?;
 
     let mut result = Vec::new();
     for row in rows {
-        let (name, count) = row.map_err(|e| MacknowsError::Query {
+        let (name, count) = row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read event_with_count row".into(),
         })?;
@@ -282,7 +282,7 @@ pub fn load_queried_states(conn: &Connection) -> Result<Vec<(String, String)>> {
 
     let mut stmt = conn
         .prepare("SELECT queried_state_name, queried_state_value FROM queried_states")
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare queried_states query".into(),
         })?;
@@ -293,14 +293,14 @@ pub fn load_queried_states(conn: &Connection) -> Result<Vec<(String, String)>> {
             let val: String = row.get::<_, Option<String>>(1)?.unwrap_or_default();
             Ok((key, val))
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query queried_states".into(),
         })?;
 
     let mut result = Vec::new();
     for row in rows {
-        result.push(row.map_err(|e| MacknowsError::Query {
+        result.push(row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read queried_state row".into(),
         })?);
@@ -322,7 +322,7 @@ pub fn load_agg_sessions(conn: &Connection) -> Result<Vec<CollectionPeriod>> {
              FROM agg_session \
              ORDER BY agg_session_start_timestamp",
         )
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "prepare agg_session query".into(),
         })?;
@@ -335,16 +335,153 @@ pub fn load_agg_sessions(conn: &Connection) -> Result<Vec<CollectionPeriod>> {
                 period_type: row.get(2)?,
             })
         })
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: "query agg_session".into(),
         })?;
 
     let mut result = Vec::new();
     for row in rows {
-        result.push(row.map_err(|e| MacknowsError::Query {
+        result.push(row.map_err(|e| MacstalkerError::Query {
             source: e,
             context: "read agg_session row".into(),
+        })?);
+    }
+    Ok(result)
+}
+
+/// Load data sink destinations and their transform counts from config.sqlite.
+pub fn load_sinks(conn: &Connection) -> Result<Vec<(String, usize)>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT json_extract(transform_def, '$.outputs[0].sink') as sink, COUNT(*) \
+             FROM transforms GROUP BY sink ORDER BY COUNT(*) DESC",
+        )
+        .map_err(|e| MacstalkerError::Query {
+            source: e,
+            context: "prepare sinks query".into(),
+        })?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            let sink: String = row
+                .get::<_, Option<String>>(0)?
+                .unwrap_or_else(|| "Unknown".into());
+            let count: usize = row.get::<_, i64>(1)? as usize;
+            Ok((sink, count))
+        })
+        .map_err(|e| MacstalkerError::Query {
+            source: e,
+            context: "query sinks".into(),
+        })?;
+
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row.map_err(|e| MacstalkerError::Query {
+            source: e,
+            context: "read sink row".into(),
+        })?);
+    }
+    Ok(result)
+}
+
+/// Load sampling breakdown from config.sqlite.
+///
+/// Returns (collecting, sampled_out, unsampled) counts.
+pub fn load_sampling_info(conn: &Connection) -> Result<(usize, usize, usize)> {
+    if !table_exists(conn, "sampling")? {
+        return Ok((0, 0, 0));
+    }
+
+    // Transforms with sampling that are NOT sampled out
+    let collecting: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM transforms t \
+             JOIN sampling s ON t.sampling_id = s.sampling_id \
+             WHERE s.sampled_out = 0",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    // Transforms with sampling that ARE sampled out
+    let sampled_out: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM transforms t \
+             JOIN sampling s ON t.sampling_id = s.sampling_id \
+             WHERE s.sampled_out = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    // Transforms with no sampling
+    let unsampled: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM transforms WHERE sampling_id IS NULL",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    Ok((
+        collecting as usize,
+        sampled_out as usize,
+        unsampled as usize,
+    ))
+}
+
+/// Count modify_eventdefs (runtime enrichment rules).
+pub fn count_enrichment_rules(conn: &Connection) -> Result<usize> {
+    if !table_exists(conn, "modify_eventdefs")? {
+        return Ok(0);
+    }
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM modify_eventdefs", [], |row| {
+            row.get(0)
+        })
+        .unwrap_or(0);
+    Ok(count as usize)
+}
+
+/// Count total event types.
+pub fn count_events(conn: &Connection) -> usize {
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
+        .unwrap_or(0);
+    count as usize
+}
+
+/// Load budget-disabled transforms with their event names.
+pub fn load_budget_disabled(conn: &Connection) -> Result<Vec<String>> {
+    if !table_exists(conn, "disabled_transforms")? {
+        return Ok(Vec::new());
+    }
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT e.event_name \
+             FROM disabled_transforms dt \
+             JOIN transform_events te ON dt.transform_id = te.transform_id \
+             JOIN events e ON te.event_id = e.event_id",
+        )
+        .map_err(|e| MacstalkerError::Query {
+            source: e,
+            context: "prepare budget_disabled query".into(),
+        })?;
+
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| MacstalkerError::Query {
+            source: e,
+            context: "query budget_disabled".into(),
+        })?;
+
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row.map_err(|e| MacstalkerError::Query {
+            source: e,
+            context: "read budget_disabled row".into(),
         })?);
     }
     Ok(result)
@@ -358,7 +495,7 @@ fn table_exists(conn: &Connection, table_name: &str) -> Result<bool> {
             [table_name],
             |row| row.get(0),
         )
-        .map_err(|e| MacknowsError::Query {
+        .map_err(|e| MacstalkerError::Query {
             source: e,
             context: format!("check table existence: {table_name}"),
         })?;

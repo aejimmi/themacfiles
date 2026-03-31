@@ -1,20 +1,20 @@
-//! macknows CLI — decode Apple analyticsd telemetry databases.
+//! macstalker CLI — decode Apple analyticsd telemetry databases.
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
-use macknows::category::Category;
-use macknows::output;
+use macstalker::category::Category;
+use macstalker::output;
 use std::path::{Path, PathBuf};
 
 /// The default location of analyticsd databases on macOS.
 const DEFAULT_DIR: &str = "/private/var/db/analyticsd";
 
-/// macknows — see what Apple knows about you.
+/// macstalker — see what Apple knows about you.
 ///
 /// Decodes the analyticsd SQLite databases to show exactly what telemetry
 /// Apple collects, even when all analytics toggles are OFF.
 #[derive(Parser)]
-#[command(name = "macknows", version, about)]
+#[command(name = "macstalker", version, about)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -104,7 +104,7 @@ fn cmd_decode(
 ) -> Result<()> {
     let (config, state) = resolve_paths(dir)?;
     let mut records =
-        macknows::decode_databases(&config, &state).context("failed to decode databases")?;
+        macstalker::decode_databases(&config, &state).context("failed to decode databases")?;
 
     // Apply filters (AND logic)
     if let Some(cat) = category {
@@ -134,7 +134,7 @@ fn cmd_decode(
 /// Execute the `summary` subcommand.
 fn cmd_summary(dir: &Path) -> Result<()> {
     let (config, state) = resolve_paths(dir)?;
-    let summary = macknows::summary(&config, &state).context("failed to generate summary")?;
+    let summary = macstalker::summary(&config, &state).context("failed to generate summary")?;
     println!("{}", output::format_summary(&summary));
     Ok(())
 }
@@ -142,7 +142,7 @@ fn cmd_summary(dir: &Path) -> Result<()> {
 /// Execute the `events` subcommand.
 fn cmd_events(dir: &Path, category: Option<Category>, json: bool) -> Result<()> {
     let (config, _state) = resolve_paths(dir)?;
-    let mut events = macknows::list_events(&config).context("failed to list events")?;
+    let mut events = macstalker::list_events(&config).context("failed to list events")?;
 
     if let Some(cat) = category {
         events.retain(|e| e.category == cat);
@@ -168,7 +168,7 @@ fn resolve_paths(dir: &Path) -> Result<(PathBuf, PathBuf)> {
         bail!(
             "directory not found: {}\n\n\
              Hint: copy the databases from /private/var/db/analyticsd/ to a local directory,\n\
-             or run with sudo: sudo macknows decode",
+             or run with sudo: sudo macstalker decode",
             dir.display()
         );
     }

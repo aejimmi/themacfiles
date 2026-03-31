@@ -154,14 +154,14 @@ pub fn create_fixture_state_db(dir: &Path) -> Connection {
     conn.execute(
         "INSERT INTO transform_states (transform_metadata_id, transform_key, transform_value) \
          VALUES (?1, ?2, ?3)",
-        rusqlite::params![1, r#"["Safari.app","true"]"#, r#"[3600, 15]"#,],
+        rusqlite::params![1, r#"["Safari.app","true"]"#, r"[3600, 15]",],
     )
     .expect("failed to insert app state");
 
     conn.execute(
         "INSERT INTO transform_states (transform_metadata_id, transform_key, transform_value) \
          VALUES (?1, ?2, ?3)",
-        rusqlite::params![2, r#"["home"]"#, r#"[5]"#,],
+        rusqlite::params![2, r#"["home"]"#, r"[5]",],
     )
     .expect("failed to insert loc state");
 
