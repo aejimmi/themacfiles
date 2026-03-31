@@ -46,5 +46,5 @@
 ## CLI
 
 - Three subcommands — `decode` (full telemetry dump), `summary` (high-level overview), `events` (event type catalog).
-- Auto-detection — defaults to `/private/var/db/analyticsd` so `sudo macstalker summary` works immediately.
+- Auto-detection — defaults to `/private/var/db/analyticsd` so `sudo themacfiles summary` works immediately.
 - Custom path — point at any directory containing copied databases for offline analysis.

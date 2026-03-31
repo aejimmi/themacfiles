@@ -1,10 +1,10 @@
-//! Error types for the macstalker library.
+//! Error types for the themacfiles library.
 
 use std::path::PathBuf;
 
-/// All errors that can occur in macstalker library operations.
+/// All errors that can occur in themacfiles library operations.
 #[derive(Debug, thiserror::Error)]
-pub enum MacstalkerError {
+pub enum MacfilesError {
     /// A required database file was not found at the expected path.
     #[error("database not found: {path}")]
     DatabaseNotFound {
@@ -48,5 +48,5 @@ pub enum MacstalkerError {
     },
 }
 
-/// Convenience alias for macstalker results.
-pub type Result<T> = std::result::Result<T, MacstalkerError>;
+/// Convenience alias for themacfiles results.
+pub type Result<T> = std::result::Result<T, MacfilesError>;

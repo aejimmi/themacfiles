@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/macstalker",
+    "crates/themacfiles",
 ]
 resolver = "2"
 

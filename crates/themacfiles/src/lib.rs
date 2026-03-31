@@ -1,4 +1,4 @@
-//! macstalker — Apple telemetry decoder library.
+//! themacfiles — Apple telemetry decoder library.
 //!
 //! Reads the analyticsd SQLite databases (`config.sqlite` and `state.sqlite`)
 //! and cross-references transform definitions with collected state data to
@@ -12,9 +12,9 @@
 //! let config = Path::new("/private/var/db/analyticsd/config.sqlite");
 //! let state = Path::new("/private/var/db/analyticsd/state.sqlite");
 //!
-//! let records = macstalker::decode_databases(config, state).unwrap();
-//! let events = macstalker::list_events(config).unwrap();
-//! let summary = macstalker::summary(config, state).unwrap();
+//! let records = themacfiles::decode_databases(config, state).unwrap();
+//! let events = themacfiles::list_events(config).unwrap();
+//! let summary = themacfiles::summary(config, state).unwrap();
 //! ```
 
 pub mod category;
@@ -27,7 +27,7 @@ pub mod schema;
 #[cfg(test)]
 mod testutil;
 
-use crate::error::{MacstalkerError, Result};
+use crate::error::{MacfilesError, Result};
 use crate::schema::{
     AppInsight, BinaryFingerprint, DecodedRecord, EventInfo, Insights, MlModelInsight, Summary,
 };
@@ -294,7 +294,7 @@ fn open_databases(
     validate_path(config_path)?;
     validate_path(state_path)?;
 
-    let tmpdir = tempfile::TempDir::new().map_err(|e| MacstalkerError::Io { source: e })?;
+    let tmpdir = tempfile::TempDir::new().map_err(|e| MacfilesError::Io { source: e })?;
 
     let config_copy = tmpdir.path().join("config.sqlite");
     let state_copy = tmpdir.path().join("state.sqlite");
@@ -310,14 +310,14 @@ fn open_databases(
 
     let config_conn =
         Connection::open_with_flags(&config_copy, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| MacstalkerError::DatabaseOpen {
+            .map_err(|e| MacfilesError::DatabaseOpen {
                 source: e,
                 path: config_path.to_path_buf(),
             })?;
 
     let state_conn =
         Connection::open_with_flags(&state_copy, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| MacstalkerError::DatabaseOpen {
+            .map_err(|e| MacfilesError::DatabaseOpen {
                 source: e,
                 path: state_path.to_path_buf(),
             })?;
@@ -329,7 +329,7 @@ fn open_databases(
 fn open_single_db(db_path: &Path) -> Result<(Connection, tempfile::TempDir)> {
     validate_path(db_path)?;
 
-    let tmpdir = tempfile::TempDir::new().map_err(|e| MacstalkerError::Io { source: e })?;
+    let tmpdir = tempfile::TempDir::new().map_err(|e| MacfilesError::Io { source: e })?;
 
     let file_name = db_path
         .file_name()
@@ -338,7 +338,7 @@ fn open_single_db(db_path: &Path) -> Result<(Connection, tempfile::TempDir)> {
     std::fs::copy(db_path, &copy_path)?;
 
     let conn = Connection::open_with_flags(&copy_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|e| MacstalkerError::DatabaseOpen {
+        .map_err(|e| MacfilesError::DatabaseOpen {
             source: e,
             path: db_path.to_path_buf(),
         })?;
@@ -349,7 +349,7 @@ fn open_single_db(db_path: &Path) -> Result<(Connection, tempfile::TempDir)> {
 /// Validate that a database file exists.
 fn validate_path(path: &Path) -> Result<()> {
     if !path.exists() {
-        return Err(MacstalkerError::DatabaseNotFound {
+        return Err(MacfilesError::DatabaseNotFound {
             path: path.to_path_buf(),
         });
     }
