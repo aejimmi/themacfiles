@@ -1,0 +1,692 @@
+macOS ML Models
+===============
+What they do. Where they live. How to reverse them.
+
+Observed on macOS 15 Sequoia. All models are files on disk, loaded at runtime by
+CoreML, compiled for Neural Engine / GPU / CPU. SIP prevents modification but not
+reading. Everything here is readable without disabling SIP.
+
+
+1. MEDIA ANALYSIS (com.apple.mediaanalysisd)
+---------------------------------------------
+Framework: /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/Resources/
+Format: bare .espresso.net / .espresso.shape / .espresso.weights (not bundled into .mlmodelc)
+Model count: 55+
+
+Face analysis:
+  cnn_facepose              Face orientation estimation (yaw/pitch/roll)
+  cnn_blink                 Blink detection
+  cnn_smile                 Smile detection
+
+Body analysis:
+  cnn_human_pose            Full body pose estimation
+  cnn_human_pose_single     Single-person pose estimation
+  cnn_human_pose_lite_v2    Lightweight pose (for video)
+  cnn_image_human_action    Human action classification in still images
+  feature_extraction        General feature extraction backbone
+
+Hand analysis:
+  cnn_hand_detector_v2      Hand bounding box detection
+  hand_keypoint_detector_acc_v2    Hand keypoint estimation (accurate)
+  hand_keypoint_detector_lite      Hand keypoint estimation (fast)
+  gesture_recognition       Hand gesture classification
+  hand_gesture_static       Static hand gesture (mlmodelc)
+  hand_gesture_dynamic_two_hand_5fps   Two-hand dynamic gesture (mlmodelc)
+
+Animal analysis:
+  cnn_pets_detector_v2      Pet detection (cats/dogs)
+  cnn_pet_pose              Pet pose estimation
+
+Scene and object:
+  cnn_saliency              Visual saliency (what draws the eye)
+  cnn_landmark              Landmark / point-of-interest detection
+  cnn_emoji_mlscaler        Emoji scene matching
+
+Image quality:
+  cnn_blur                  Blur detection
+  cnn_blurV2                Blur detection v2
+  quality_head              Image quality scoring
+
+Text in images:
+  text_safety_md5           Text safety classifier v5
+  text_safety_md6_v1        Text safety classifier v6
+  text_safety_md7_v1..v4    Text safety classifier v7 (4 revisions)
+  text_threshold_md3..md7   Text detection threshold models (6 variants)
+  text_calibration_md3      Text detection calibration
+
+Video analysis:
+  video_backbone            Video feature extraction backbone
+  flow_estimation_2..6      Optical flow (5 progressive models)
+  cnn_moflow                Motion flow estimation
+  cameramotionscore_head    Camera motion quality scoring
+  cameramotiontype_head     Camera motion type classification
+  action_recognition_head   Action recognition (stage 1 + final)
+  action_repetition_counter Repetitive action counting (mlmodelc)
+  highlight_head            Video highlight detection
+  autoplay_head             Auto-play worthiness scoring
+
+Other:
+  MonzaV4_1                 Unknown purpose (mlmodelc, codename)
+  mubb_md7                  Unknown purpose (mlmodelc)
+  quantized_9hy8wvx5wz_iteration_47_model   Unknown (quantized model, hash ID)
+
+Data artifacts:
+  ~/Library/Containers/com.apple.mediaanalysisd/Data/Library/Caches/com.apple.mediaanalysisd/
+  Can grow to multiple GB. Contains CV analysis cache and intermediate results.
+
+
+2. VISION FRAMEWORK
+-------------------
+Framework: /System/Library/Frameworks/Vision.framework/Versions/A/Resources/
+Format: .espresso.net/.weights/.shape, some .mlmodelc
+Model count: 35+
+
+Face recognition:
+  facerec_fp3.1.3b_fa1.3    Face recognition (full precision, v3.1)
+  facerec_fa1.3_lightweight_fp16   Face recognition (lightweight, fp16)
+  faceSemantics_v1_15class_quant   Face semantic segmentation (15 classes: skin, hair, eyes, etc.)
+  face_quality_v1.0_fp16    Face image quality v1
+  face_quality_v2.0_fp16    Face image quality v2
+  facequality_regression    Face quality regression score
+  landmarksflow             Face landmark detection
+  solo_landmarks            Single-face landmarks
+  gazefollowingflow         Gaze direction tracking
+
+Body:
+  bodynet_v1.0              Body detection
+  torso_v3_md2_fp16         Upper-body detection v3
+  torso_v4_md2              Upper-body detection v4
+  torso_v5_md2              Upper-body detection v5
+  personsegmentation-si-01  Person segmentation mask
+  subject_lifting_gen1_rev5 Subject lifting / foreground extraction (int8)
+
+Animals:
+  pet_v1_md2_fp16           Pet detection v1
+  pet_v2_md3_fp16           Pet detection v2
+
+Object detection:
+  anodv3_drop3              Apple Neural Object Detector v3
+  anodv4_drop6_fp16         Apple Neural Object Detector v4
+  anodv5_drop1_8b           Apple Neural Object Detector v5
+  mrcdetector               Machine-readable code detector (QR, barcodes)
+  rpn_template_v5           Region proposal network (template matching)
+  rpn_track_v5              Region proposal network (tracking)
+
+Scene:
+  SCL_v0.3.1                Scene classification
+  shotflow                  Shot boundary detection (video)
+  sliderflow                Slider/transition detection
+
+Visual processing:
+  saliency_attention_box_head   Attention saliency (bounding box)
+  saliency_objectness_boxes_head   Object saliency detection
+  docseg_segflow            Document segmentation
+  learned-matting-1512x2016 Alpha matting (full resolution)
+  learnedmatting-f16-v2     Alpha matting (fp16 v2)
+
+Hash:
+  NeuralHashv3b_fp16        NeuralHash perceptual hash (the CSAM model — reversed in 2021)
+
+Tracking:
+  vmtracker_model_v1_6      Visual motion tracking (mlmodelc)
+
+Format conversion:
+  fc_md1_from_anfr_3_1_md2_to_4_md2   Face recognition model adapter (v3 to v4)
+  fc_md1_from_torso_v3_md2_to_v5_md2  Torso model adapter (v3 to v5)
+
+
+3. CORE RECOGNITION (com.apple.mediaanalysisd uses these for Live Text)
+-----------------------------------------------------------------------
+Framework: /System/Library/PrivateFrameworks/CoreRecognition.framework/Versions/A/Resources/
+Format: .mlmodelc.bundle containing espresso files
+Model count: 4 base models, localized variants per language
+
+  cc_excnnfs_model          Latin-script character recognition (CNN + feature sequence)
+  cc_chcnnfs_model          Chinese character recognition
+  cc_cncnnfs_model          CJK character recognition
+  cc_flat_model             General flat text model
+
+Naming convention for localized variants (loaded by mediaanalysisd):
+  cr_lw_en-US               CoreRecognition Live Words, English
+  cr_lw_th-TH               CoreRecognition Live Words, Thai
+  cr_td_model_v3            CoreRecognition Text Detection v3
+
+The two-stage pipeline: cr_td detects text regions in the image, then cr_lw
+recognizes characters within each region. One cr_lw model per supported language.
+
+
+4. INTELLIGENCE PLATFORM (com.apple.intelligenceplatformd)
+----------------------------------------------------------
+Framework: /System/Library/PrivateFrameworks/IntelligencePlatformCore.framework/Versions/A/Resources/
+Format: .mlmodelc bundles with metadata.json
+Signal configs: 165 JSON files in Views/config/
+
+This is the behavioral prediction engine. It builds a knowledge graph of your
+contacts, locations, activities, and relationships. The models classify your
+social graph and predict what's relevant to you in context.
+
+Models:
+
+  EntityTagging_Family.mlmodelc
+    Type: XGBoost tree ensemble (xgboost 1.7.5 via coremltools 6.3.0)
+    Output: binary — is this contact "family" or not
+    Inputs: 130+ features (full list extracted from metadata.json):
+
+    Contact metadata:
+      isVIP, sameLastName, hasBirthday, hasNickname, isFavorite,
+      iCloudFamilyMember, nameContainsEmoji, nicknameContainsEmoji,
+      allowListedNameMatch, allowListedNicknameMatch
+
+    Address and email:
+      sharesHomeAddress, sharesWorkAddress,
+      hasSameEmailDomains, hasSamePrivateEmailDomain,
+      hasSamePublicEmailDomain, hasSameWorkEmailDomain,
+      hasSameEduEmailDomain
+
+    Photo-derived:
+      photosPersonAge, ageDifferenceCategory,
+      photosAgeDifferenceCategory
+
+    Behavioral — how often you interact, by day and time:
+      personOverallPopularity, personLongTermPopularity,
+      personPopularityGiven{Monday..Sunday},
+      {day}PopularityGivenPerson,
+      personPosteriorProbabilityGiven{day},
+      personPopularityGiven{Morning,Afternoon,Evening,Night},
+      personPopularityGiven{Home,Work},
+      {home,work}PopularityGivenPerson,
+      personPopularityGiven{Weekday,Weekend}
+
+    Photos behavioral (same temporal grid but from photo co-occurrence):
+      photosPersonOverallPopularity, photosPersonLongTermPopularity,
+      photosPersonPopularityGiven{day}, {day}PopularityGivenPhotosPerson,
+      photosPersonPosteriorProbabilityGiven{day},
+      photosPersonPosteriorProbabilityGiven{day}{timeOfDay} (7x4 = 28 slots),
+      photosPersonPopularityGiven{Home,Work,Weekday,Weekend},
+      hasWeekendWeekdayPhotosFeatures
+
+    Interaction:
+      top1PersonInteractionMechanism, top2PersonInteractionMechanism,
+      top3PersonInteractionMechanism
+
+  EntityTagging_FamilyAndFriends.mlmodelc
+    Type: XGBoost tree ensemble
+    Inputs: 144 features (same as Family + extras)
+    Output: binary — is this contact "family or friend"
+
+  The entity tagging system as a whole outputs probability scores for:
+    mother, father, parent, sister, brother, sibling, family, friend,
+    familyAndFriends, partner, coworker, alumni, child, son, daughter,
+    myself, unknown
+  Stored in: entityTagging/entityTagging.db, table "entity_tagging"
+  Updated: every 2 hours from personEntityTaggingFacts, daily full refresh
+
+  EntityRelevanceModel.mlmodelc
+    Type: XGBoost tree ensemble
+    Inputs: 30 features — all context-based:
+      behaviorPopularityGivenContext:{coarseGeoHash, coarseTimeOfDay, dayOfWeek,
+        loi, specificGeoHash}
+      behaviorPopularityGivenSequence
+      contextPopularityGivenBehavior:{coarseGeoHash, coarseTimeOfDay, dayOfWeek,
+        loi, specificGeoHash, wifi}
+      posteriorProbabilityGivenContext:{coarseGeoHash+coarseTimeOfDay,
+        coarseTimeOfDay+dayOfWeek, coarseTimeOfDay, dayOfWeek, loi,
+        coarseTimeOfDay+specificGeoHash, specificGeoHash,
+        coarseTimeOfDay+wifi, dayOfWeek+wifi, wifi}
+      dailyDoseL1Error, dailyDoseL2Error
+      lastExecutionAge, medianTimeIntervalBetweenExecution
+      longTermTrendingPopularity, shortTermTrendingPopularity, trendingPopularity
+      sequencePopularityGivenBehavior
+    Output: binary — is this entity relevant right now
+    This model decides: given your current location (geohash), time of day,
+    day of week, WiFi network, and location-of-interest — who/what matters
+    to you in this moment.
+
+  DiningOutModel.mlmodelc
+    Type: neural net
+    Inputs: POI (point of interest), PassKit (wallet/payment), FIA (food in activity)
+    Predicts dining-out behavior from location + payment + activity signals.
+
+  EntitySimilarityLinearModel.mlmodelc
+    Linear model for computing similarity between entities (people, places).
+
+  ETShadowModel.mlmodelc
+    Shadow/test model for entity tagging (A/B testing or validation).
+
+  LOITypeToOneHotTransformer.mlmodelc
+    Converts location-of-interest type codes to one-hot feature vectors.
+
+  Entity importance signals (entityImportanceSignals.db):
+    Stores per-contact: isFavorite, isEmergencyContact, isICloudFamily,
+    relationshipLabel. Sourced from: CNContact, FAFamily, HKEmergencyContact,
+    IPEntityTaggingPersonInference.
+
+Framework: /System/Library/PrivateFrameworks/IntelligencePlatform.framework/Versions/A/Resources/
+
+  EntityRerankerModel.mlmodelc     Re-ranks entity relevance results
+  locationEncoder.mlmodelc         Encodes locations into embedding vectors
+  MDNameToEmailPersonLinker.mlmodelc   Links names to email addresses to people
+  MDNameToNamePersonLinker.mlmodelc    Links name variants to the same person
+  MentionGenerationModel.mlmodelc     Generates mention/suggestion text
+
+Signal pipeline (165 config files, selected highlights):
+
+  Interaction signals:
+    callInteractionFeature         Call frequency, patterns, handles
+    messagingInteractionFeature    Message frequency, patterns
+    contactRelationshipFeature     Contact card metadata
+    physicalSocialSignal           Physical proximity detection
+    familyNameEquivalencyFeature   Last-name matching across contacts
+
+  Contextual signals:
+    currentCoarseGeoHashContext    Approximate location (geohash)
+    currentSpecificGeoHashContext  Precise location
+    currentCoarseTimeOfDayContext  Time bucket (morning/afternoon/evening/night)
+    currentDayOfWeekContext        Day of week
+    currentLOIContext              Current location-of-interest
+    currentWiFiContext             Current WiFi network name
+
+  Device signals:
+    ambientLightSignal             Ambient light sensor readings
+    ambientLightDistributionSignal Light distribution over time
+    chargingStateFeature           Charging state
+    deviceDisplaySignal            Screen on/off, brightness
+    devicePowerSignal              Battery state
+    deviceWirelessSignal           WiFi/cellular/Bluetooth state
+    carPlaySignal                  CarPlay connection state
+    motionStateSignal              Stationary/walking/driving/running
+    motionStateDistributionSignal  Motion state distribution over time
+    inferredModeSignal             Inferred Focus Mode
+    soundAnalysisSignal            Ambient sound classification
+    workoutSignal                  Active workout state
+
+  Behavioral signals:
+    appLaunchSignal                Which apps launched when
+    appCategoryDistributionSignal  App usage distribution by category
+    installedAppSignal             Installed app inventory
+    behaviorSequenceSignal         Sequence of user actions
+    nowPlayingSignal               Currently playing media
+    biomeSqlStructuredFeature      Biome behavioral database features
+
+  Knowledge graph:
+    entitySubgraph                 Core entity graph
+    peopleSubgraph                 People subgraph
+    organizationSubgraph           Organization entities
+    topicSubgraph                  Topic/interest entities
+    eventSubgraph                  Calendar events
+    donationSubgraph               Siri shortcut donations
+    hasAssociationSubgraph         Entity-to-entity associations
+    appSubgraph                    App entities
+    entityEmbeddings               Entity vector embeddings
+    entitySimilarityFeatures       Pairwise similarity features
+    pageRank                       PageRank over the entity graph
+
+  Person profiling:
+    personEntityHistograms                Per-person interaction histograms
+    bidirectionalPersonEntityHistograms   Bidirectional interaction patterns
+    personEntityLongTermRanking           Long-term person importance
+    personEntityTagging                   Relationship classification
+    personEntityTaggingFacts              Facts feeding the classifier
+    photosPersonEntityTagging             Photo-derived relationship signals
+    photosPersonEntityHistograms          Photo co-occurrence histograms
+    personTopics                          Topics associated with people
+    personTokenCount                      Message volume per person
+    siriPersonView                        Siri's view of person entities
+    siriRemembers                         Things Siri has been told to remember
+
+  Location profiling:
+    locationMetadataSignal                Location metadata
+    locationSubgraphFeatures              Location graph features
+    semanticLocationSignal                Semantic place labels (home, work, gym)
+    poiCategorySignal                     Point-of-interest categories
+    microLocationSignal                   Micro-location (room-level)
+    loiEntityHistograms                   Per-location entity interaction histograms
+    loiEntityRelevance*Features           20+ config files for location-context relevance
+
+  Life events:
+    lifeEventMap, lifeEventSubgraph       Life event detection and graph
+    futureLifeEventMap, futureLifeEventSubgraph   Predicted future events
+    HolidayEventSubgraph                  Holiday detection
+
+  Global knowledge:
+    LocalizedRelationshipTopics           Localized relationship topic labels
+    MediaEntitiesSubgraph                 Media entity knowledge
+    PortraitTopics                        Portrait-related topics
+    PriorBeliefs                          Prior probability distributions
+
+All signal features accumulate in: feature/features.db
+Entity tagging results in: entityTagging/entityTagging.db
+Entity relevance results in: entityRelevance/entityImportanceSignals.db
+
+RELATIONSHIP CLASSIFICATION
+----------------------------
+Every person Apple knows about — from contacts, photos, or both — gets scored
+for 17 relationship categories. Updated every 2 hours. Works on nameless faces.
+
+  mother, father, parent, sister, brother, sibling, family, friend,
+  familyAndFriends, partner, coworker, alumni, child, son, daughter,
+  myself, unknown
+
+Each is a probability score 0.0-1.0. A face with no contact card, no phone
+number, no email can still score family=0.317 from photo co-occurrence alone.
+
+  Person type:      Ordinary, Celebrity (inferred), Pet (inferred)
+  Detection type:   human, pet
+
+Data: ~/Library/IntelligencePlatform/Artifacts/entityTagging/entityTagging.db
+Dump: ./scripts/dump-entity.sh <id>
+
+
+PER-FACE BIOMETRIC PROFILING
+------------------------------
+Every detected face in every photo gets a full physical description.
+73 columns per detection. This is what Apple stores about each face:
+
+  Gender:        unknown, male, female
+  Age:           unknown, baby, child, teen, adult, senior
+  Ethnicity:     unknown, type 1-4 (labels not decoded)
+  Skin tone:     numeric scale (observed 1-3)
+  Hair color:    unknown, black, brown, blonde, red, gray, other
+  Hair type:     numeric codes (not yet decoded)
+  Facial hair:   none, stubble, beard, other
+  Glasses:       none, prescription, other
+  Headgear:      none, type codes (labels not decoded — type 5 most common)
+  Face mask:     no, yes
+  Eye makeup:    none, type codes
+  Lip makeup:    none, type codes
+  Smile:         no/yes, slight/broad
+  Eyes:          open/closed per eye
+  Gaze:          direction type, angle, confidence, target coordinates
+  Pose:          frontal, half-profile, angled, yaw, roll
+  Expression:    type codes
+  Quality:       0.0-1.0 face quality score + blur score
+  Body:          upper body bounding box (center, width, height)
+  Celebrity:     VIP model type code (celebrity detection)
+  Is-me:         confidence score that this face is the device owner
+
+Each detection links to: source photo filename, timestamp, GPS coordinates.
+Each face cluster (ZPERSON) aggregates: display name, face count, merge
+confidence, contact matching scores.
+
+Data: ~/Pictures/Photos Library.photoslibrary/database/Photos.sqlite
+Tables: ZDETECTEDFACE (73 cols), ZPERSON (30 cols)
+Dump: ./scripts/dump-entity.sh <id>
+
+Database column reference (for writing queries):
+
+  ZGENDERTYPE, ZAGETYPE, ZETHNICITYTYPE, ZSKINTONETYPE, ZHAIRCOLORTYPE,
+  ZHAIRTYPE, ZFACIALHAIRTYPE, ZGLASSESTYPE, ZHEADGEARTYPE, ZHASFACEMASK,
+  ZEYEMAKEUPTYPE, ZLIPMAKEUPTYPE, ZHASSMILE, ZSMILETYPE, ZFACEEXPRESSIONTYPE,
+  ZEYESSTATE, ZISLEFTEYECLOSED, ZISRIGHTEYECLOSED, ZGAZETYPE, ZGAZEANGLE,
+  ZGAZECONFIDENCE, ZGAZECENTERX, ZGAZECENTERY, ZPOSETYPE, ZPOSEYAW, ZROLL,
+  ZQUALITY, ZQUALITYMEASURE, ZBLURSCORE, ZBODYCENTERX, ZBODYCENTERY,
+  ZBODYHEIGHT, ZBODYWIDTH, ZCENTERX, ZCENTERY, ZSIZE, ZVIPMODELTYPE,
+  ZDETECTIONTYPE, ZPERSONFORFACE, ZASSETFORFACE, ZFACEPRINT, ZFACECROP
+
+
+5. PEOPLE SUGGESTER
+--------------------
+Framework: /System/Library/PrivateFrameworks/PeopleSuggester.framework/Versions/A/Resources/
+Model count: 10
+
+  ContactRankerModel.mlmodelc
+    Type: pipeline classifier
+    Inputs: 35 features — ranks contacts by interaction likelihood:
+      timeSinceLastContactVia{Share, IncomingText, OutgoingText, IncomingCall}
+      normalized{Share, IncomingText, OutgoingText, IncomingCall, OutgoingCall}Frequency
+      numberOfBehavioralRulesAdvocating
+      averageBehavioralRule{Support, Confidence, Lift, Conviction, PowerFactor, MLScore}
+      minimumBehavioralRule{Support, Confidence, Lift, Conviction}
+    The "behavioral rules" are association-rule mining patterns: "when you're
+    at work on Tuesday morning, you text person X." The model uses mined rule
+    support/confidence/lift as features.
+
+  interactionPrediction.mlmodelc
+    Type: neural net classifier
+    Predicts who you'll interact with next.
+
+  iCloudFamilyModel_{gbdt,dt,rf,IP_gbdt}.mlmodelc
+    Four model variants (gradient-boosted, decision tree, random forest, IP-boosted).
+    Family detection from iCloud signals. Separate from the IntelligencePlatform
+    EntityTagging models — these run on iCloud-derived features.
+
+  compiledShareSheetModel.mlmodelc         Share sheet contact ranking
+  sharesheetEmptyBaseModel.mlmodelc        Baseline when no history
+  cloud_mlp_with_embedding.mlmodelc        Cloud-based MLP with embeddings
+  psSuggestionsRankingModel.mlmodelc       Suggestion ranking (1 input: timeSinceLastOutgoingInteraction)
+
+
+6. PERSONALIZATION PORTRAIT
+----------------------------
+Framework: /System/Library/PrivateFrameworks/PersonalizationPortraitInternals.framework/Versions/A/Resources/
+
+  context_predictor.mlmodelc               Predicts user context (home/work/commute/etc.)
+  social_highlights_scorer.mlmodelc        Scores social highlights for surfacing
+  social_highlights_top_k_scorer.mlmodelc  Top-K social highlight ranking
+  PPModel_NE_Filtering.mlmodelc            Notification filtering (which notifications matter)
+
+
+7. CORE ROUTINE (com.apple.routined)
+-------------------------------------
+Framework: /System/Library/PrivateFrameworks/CoreRoutine.framework/Versions/A/Resources/
+
+  RTPlaceTypeClassifierModelMultiClass.mlmodelc    Classifies places (home, work, gym, etc.)
+  RTPlaceTypeClassifierModelRanker.mlmodelc        Ranks place type candidates
+  RTVisitTrajectorySequenceClassifierBatchMode.mlmodelc   Classifies visit trajectories (commute patterns)
+
+These power "significant locations" in Settings > Privacy > Location Services.
+They learn your routine: where you go, when, what type of place it is.
+
+
+8. VISUAL LOOK UP
+------------------
+Framework: /System/Library/PrivateFrameworks/VisualLookUp.framework/Versions/A/Resources/
+
+  UnifiedModel                 Unified visual lookup backbone
+  ObjectDetectionModel         General object detection
+  FoodModel                    Food recognition
+  NatureworldModel             Plant/animal/nature identification
+  SignSymbolModel              Sign and symbol recognition
+  DomainPredictionModel        Which lookup domain applies (food? plant? landmark?)
+  DomainPredictionGroundingModel   Grounding for domain prediction
+  CategoryClassificationModel  Category classifier
+  TitleClassificationModel     Title/label classification
+  OCRTitleModel                Title extraction from OCR
+  OCRAddressModel              Address extraction from OCR
+  EncryptedSearchLTR           Encrypted search learn-to-rank (queries Apple servers)
+
+
+9. SIRI INFERENCE
+------------------
+Framework: /System/Library/PrivateFrameworks/SiriInference.framework/Versions/A/Resources/
+
+  ContactInference.v1.6.4.ios.grain.mlmodelc      Contact resolution (iOS-grain)
+  ContactInference.v3.24.0.enlife.mlmodelc         Contact resolution (en-life, newer)
+  PervasiveEntityResolution.mlmodelc               Cross-app entity resolution
+  PhoneAppPredictor.mlmodelc                       Predicts which app for phone actions
+  PhoneAppPredictorPeopleCentric.mlmodelc          People-centric phone app prediction
+  MessageAppPredictorPeopleCentric.mlmodelc        People-centric message app prediction
+
+"People-centric" variants predict: given this person, which app do you use to
+reach them? (iMessage vs WhatsApp vs Telegram, Phone vs FaceTime, etc.)
+
+
+10. SENSITIVE CONTENT ANALYSIS
+-------------------------------
+Framework: /System/Library/PrivateFrameworks/SensitiveContentAnalysisML.framework/Versions/A/Resources/
+
+  ivs-1.8.0_quantized         Nudity/sensitive content classifier (powers Communication Safety)
+
+Single model. Runs on-device to detect sensitive images in Messages (for minors)
+and optionally for adults. "ivs" likely = "image visual safety."
+
+
+11. SPOTLIGHT SEARCH
+---------------------
+Framework: /System/Library/PrivateFrameworks/SpotlightResources.framework/Versions/A/Resources/
+
+  U2Head.mlmodelc                    Query understanding model (per-language, 15+ locales)
+  spotlight_l2.mlmodelc              L2 ranking model
+  spotlight_l3_macos.mlmodelc        L3 ranking model (macOS-specific)
+  spotlight_l3_macos_v1.mlmodelc     L3 ranking v1
+  pqa_l3_model.mlmodelc              Post-query analysis L3
+  suggestions_blending.mlmodelc      Blends Siri Suggestions into Spotlight results
+  searchToolL2_mobilemail.mlmodelc   Mail search ranking
+  searchToolL2_mobilecal.mlmodelc    Calendar search ranking
+  searchToolL2_MobileSMS.mlmodelc    Messages search ranking
+  searchToolL2_mobileslideshow.mlmodelc   Photos search ranking
+
+Per-app L2 models rank results differently depending on the source app.
+
+
+12. PROMOTED CONTENT PREDICTION
+---------------------------------
+Framework: /System/Library/PrivateFrameworks/PromotedContentPrediction.framework/Versions/A/Resources/
+
+  PTTRMLModel (4 asset versions)         Promoted content tap-through-rate prediction
+  gibraltar_identity_d8f9a11.mlmodelc    Identity model (purpose unclear — ad targeting?)
+
+"PTTR" = Promoted content Tap-Through Rate. This predicts whether you'll tap
+on promoted/suggested content. Multiple asset versions suggest A/B testing.
+
+
+13. CALL INTELLIGENCE
+----------------------
+Framework: /System/Library/PrivateFrameworks/CallIntelligence.framework/Versions/A/Resources/
+
+  ReturnToCallClassifier.mlmodelc          Predicts if you'll return a missed call
+  ReturnToCallClassifierEnUsCa.mlmodelc    English/US/Canada variant
+  ReturnToCallClassifierCJ.mlmodelc        CJ (Chinese/Japanese?) variant
+
+
+14. OTHER FRAMEWORKS WITH MODELS
+---------------------------------
+
+  SoundAnalysis.framework           Ambient sound classification (baby crying, dog barking, etc.)
+  CoreNLP.framework                 Natural language processing models
+  CoreHandwriting.framework         Handwriting recognition (Scribble, Apple Pencil)
+  WiFiAnalytics.framework           WiFiStallDetect — WiFi quality prediction
+  CoreSuggestionsInternals.framework   Siri Suggestions extraction model
+  IntelligenceFlowPlannerRuntime.framework   Apple Intelligence flow planning
+  VoiceServices.framework           Text-to-speech (fastspeech2, wavernn per locale)
+  ANSTKit.framework                 Unknown (Neural Style Transfer?)
+  AppleDepth.framework              Depth estimation from camera
+  HeadGestures.framework            Head gesture detection
+  AltruisticBodyPoseKit.framework   2D/3D body pose (FaceTime, video calls)
+  CorePhotogrammetry.framework      3D object reconstruction
+  CoreSceneUnderstanding.framework  Scene understanding
+  DeepVideoProcessingCore.framework Deep video processing
+  HDRProcessing.framework           HDR image processing
+  ImageHarmonizationKit.framework   Image compositing/harmonization
+  VideoProcessing.framework         Video ML processing
+  Quagga.framework                  Barcode/QR code reading
+  FRC.framework                     Frame rate conversion
+  LearnedFeatures.framework         Learned feature extraction
+  IMTranscoderAgent.framework       iMessage transcoding
+
+
+15. HOW TO INSPECT MODELS
+--------------------------
+
+Dump a .mlmodelc model spec (Python):
+
+  pip install coremltools
+  import coremltools as ct
+  model = ct.models.MLModel("EntityTagging_Family.mlmodelc")
+  spec = model.get_spec()
+  print(spec.description)                    # inputs, outputs, metadata
+  print(spec.treeEnsembleClassifier)         # full tree structure for XGBoost
+
+Read .espresso.net directly (it's JSON):
+
+  cat cnn_facepose.espresso.net | python3 -m json.tool
+  Shows: layer types, connections, tensor shapes, activation functions.
+
+Read model metadata:
+
+  cat EntityTagging_Family.mlmodelc/metadata.json | python3 -m json.tool
+  Shows: input schema (feature names and types), output schema, model type,
+  version, coremltools version, source framework.
+
+Visualize architecture:
+
+  Open any .mlmodelc or .espresso.net in Netron (netron.app).
+  Full computation graph with layer shapes and connections.
+
+Extract XGBoost decision trees:
+
+  spec = model.get_spec()
+  trees = spec.treeEnsembleClassifier.treeEnsemble
+  for tree in trees.nodes:
+      print(tree.nodeBehavior, tree.branchFeatureIndex, tree.branchFeatureValue)
+  This gives you every split: which feature, what threshold, which branch.
+  Fully reconstructable as human-readable decision logic.
+
+Class-dump the framework binaries:
+
+  class-dump /System/Library/PrivateFrameworks/MediaAnalysis.framework/mediaanalysisd
+  Reveals Objective-C class names: MAFaceRegionDetector, MASceneClassifier,
+  MATextSafetyEvaluator, etc. Maps models to their runtime consumers.
+
+Read the signal pipeline configs:
+
+  ls /System/Library/PrivateFrameworks/IntelligencePlatformCore.framework/\
+    Versions/A/Resources/Views/config/
+  Each JSON file describes one signal: what data it reads, where it stores
+  results, what triggers updates, and what other signals depend on it.
+
+
+16. REFERENCES
+--------------
+
+Model format internals:
+  Matthijs Hollemans, "A Peek Inside Core ML"
+  https://machinethink.net/blog/peek-inside-coreml/
+
+  Fritz AI, "Reverse Engineering Core ML"
+  (search: fritz.ai reverse engineering core ml)
+
+Apple's own architecture papers:
+  "A Multi-Task Neural Architecture for On-Device Scene Analysis" (ANSA)
+  https://machinelearning.apple.com/research/on-device-scene-analysis
+
+  "Recognizing People in Photos Through Private On-Device Machine Learning"
+  https://machinelearning.apple.com/research/recognizing-people-photos
+
+NeuralHash extraction (proof of concept for model extraction):
+  Asuhariet Yvgar, AppleNeuralHash2ONNX
+  https://github.com/AsuharietYgvar/AppleNeuralHash2ONNX
+
+Vision.framework model inventory:
+  Simon Willison
+  https://gist.github.com/simonw/6ce25981931e3c99f51f2ff0c8bcb0b1
+
+VNClassifyImageRequest taxonomy (1,303 labels):
+  Kamil Tustanowski
+  https://gist.github.com/ktustanowski/56c0d7541813868fed4aceb60ab5d149
+
+ANE hardware reverse engineering:
+  Wish Wu, "Apple Neural Engine Internal" — Black Hat Asia 2021
+  https://i.blackhat.com/asia-21/Friday-Handouts/as21-Wu-Apple-Neural_Engine.pdf
+
+  Manjeet Singh, "Inside the M4 Apple Neural Engine"
+  https://maderix.substack.com/p/inside-the-m4-apple-neural-engine
+  https://github.com/maderix/ANE
+
+  Eileen Yoon, ANE Linux driver + CoreML-to-ANE compiler
+  https://github.com/eiln/ane
+
+ANE community documentation:
+  hollance/neural-engine — "Everything we actually know about the ANE"
+  https://github.com/hollance/neural-engine
+
+Apple's coremltools:
+  https://github.com/apple/coremltools
+
+CoreML model encryption research:
+  Securing.pl, "From .mlmodel to encrypted .mlmodelc"
+  https://www.securing.pl/en/from-mlmodel-to-mlmodelc-how-apple-encrypts-and-delivers-ml-models/
+
+Biome / knowledgeC forensics (data stores that feed these models):
+  https://skiddie.life/posts/iOS-biome-knowledgeC-dfir-forensics/
+  https://blog.d204n6.com/2022/09/ios-16-now-you-c-it-now-you-dont.html

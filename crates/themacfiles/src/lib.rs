@@ -17,6 +17,7 @@
 //! let summary = themacfiles::summary(config, state).unwrap();
 //! ```
 
+pub mod app_profile;
 pub mod category;
 pub mod db;
 pub mod decode;
@@ -29,7 +30,8 @@ mod testutil;
 
 use crate::error::{MacfilesError, Result};
 use crate::schema::{
-    AppInsight, BinaryFingerprint, DecodedRecord, EventInfo, Insights, MlModelInsight, Summary,
+    AppInsight, BinaryFingerprint, DecodedRecord, DeviceInsight, EventInfo, Insights,
+    MlModelInsight, Summary,
 };
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
@@ -49,6 +51,21 @@ pub fn decode_databases(config_path: &Path, state_path: &Path) -> Result<Vec<Dec
 pub fn list_events(config_path: &Path) -> Result<Vec<EventInfo>> {
     let (config_conn, _tmpdir) = open_single_db(config_path)?;
     db::load_events_with_counts(&config_conn)
+}
+
+/// Build app profiles from decoded telemetry, optionally filtered by a query string.
+///
+/// Returns a list of [`AppProfile`](schema::AppProfile) grouped by bundle ID.
+/// If `query` is `Some`, only profiles whose bundle ID contains the query
+/// string (case-insensitive) are returned.
+pub fn app_profiles_for(
+    config_path: &Path,
+    state_path: &Path,
+    query: Option<&str>,
+) -> Result<Vec<schema::AppProfile>> {
+    let (config_conn, state_conn, _tmpdir) = open_databases(config_path, state_path)?;
+    let records = decode::decode(&config_conn, &state_conn)?;
+    Ok(app_profile::build_app_profiles(&records, query))
 }
 
 /// Generate a high-level summary of collected telemetry.
@@ -83,6 +100,18 @@ pub fn summary(config_path: &Path, state_path: &Path) -> Result<Summary> {
     let queried_states = db::load_queried_states(&state_conn)?;
     let mut insights = extract_insights(&records);
 
+    // Enrich app insights with capability indicators from app profiles.
+    let profiles = app_profile::build_app_profiles(&records, None);
+    let caps_map: HashMap<String, String> = profiles
+        .iter()
+        .map(|p| (p.bundle_id.clone(), p.caps_string()))
+        .collect();
+    for app in &mut insights.apps {
+        if let Some(caps) = caps_map.get(&app.name) {
+            app.caps.clone_from(caps);
+        }
+    }
+
     // Add config-level insights
     let sinks = db::load_sinks(&config_conn)?;
     insights.data_sinks = sinks
@@ -103,6 +132,20 @@ pub fn summary(config_path: &Path, state_path: &Path) -> Result<Summary> {
     insights.enrichment_rules = db::count_enrichment_rules(&config_conn)?;
     insights.total_event_types = db::count_events(&config_conn);
     insights.budget_disabled = db::load_budget_disabled(&config_conn)?;
+
+    // Enrich device insight from queried_states.
+    for (k, v) in &queried_states {
+        let clean = v.trim_matches('"');
+        match k.as_str() {
+            "lowPowerModeEnabled" => insights.device.low_power_mode = clean.to_string(),
+            "thermalPressure" => insights.device.thermal_state = clean.to_string(),
+            "wiFiRadioTech" => insights.device.wifi_radio = clean.to_string(),
+            "primaryNetworkInterface" => insights.device.network_interface = clean.to_string(),
+            _ => {}
+        }
+    }
+    // Enrich device insight from decoded records.
+    extract_device_insights(&records, &mut insights.device);
 
     Ok(Summary {
         category_counts: cat_vec,
@@ -149,6 +192,7 @@ fn extract_insights(records: &[DecodedRecord]) -> Insights {
                 foreground: is_fg,
                 activations,
                 launches,
+                caps: String::new(),
             });
         }
 
@@ -243,8 +287,74 @@ fn extract_insights(records: &[DecodedRecord]) -> Insights {
     insights
 }
 
+/// Extract device identity information from decoded records.
+///
+/// Scans for Safari version (reveals browser/OS), Apple Intelligence locale,
+/// and Tips URLs (contain platform, OS version, and model hash).
+fn extract_device_insights(records: &[DecodedRecord], device: &mut DeviceInsight) {
+    for r in records {
+        let ev = r.event_names.first().map_or("", String::as_str);
+        let fields = &r.fields;
+
+        // Safari events carry safariClient and safariVersion.
+        if ev.starts_with("com.apple.Safari") || r.transform_name.contains("Safari") {
+            if let Some(client) = field_str(fields, "safariClient")
+                && device.platform.is_empty()
+                && client.contains("Mac")
+            {
+                device.platform = "macOS".to_string();
+            }
+            if let Some(ver) = field_str(fields, "safariVersion")
+                && device.safari_version.is_empty()
+            {
+                device.safari_version = ver;
+            }
+        }
+
+        // Apple Intelligence status reveals locale.
+        if (ev.contains("AppleIntelligence")
+            || ev.contains("AppleIntelligenceReporting"))
+            && let Some(locale) = field_str(fields, "AppleIntelligenceLocale")
+            && device.ai_locale.is_empty()
+        {
+            device.ai_locale = locale;
+        }
+
+        // Tips feed URLs embed model hash, platform, and osVersion.
+        for (_, val) in fields {
+            if let Some(s) = val.as_str()
+                && s.contains("ipcdn.apple.com")
+                && s.contains("osVersion=")
+            {
+                parse_tips_url(s, device);
+            }
+        }
+    }
+}
+
+/// Parse device identity parameters from an Apple Tips URL.
+fn parse_tips_url(url: &str, device: &mut DeviceInsight) {
+    for param in url.split('&') {
+        let param = param.split('?').next_back().unwrap_or(param);
+        if let Some((key, val)) = param.split_once('=') {
+            match key {
+                "osVersion" if device.os_version.is_empty() => {
+                    device.os_version = val.to_string();
+                }
+                "platform" if device.platform.is_empty() => {
+                    device.platform = val.to_string();
+                }
+                "model" if device.model_hash.is_empty() => {
+                    device.model_hash = val.to_string();
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
 /// Get a string field value by name.
-fn field_str(fields: &[(String, serde_json::Value)], name: &str) -> Option<String> {
+pub(crate) fn field_str(fields: &[(String, serde_json::Value)], name: &str) -> Option<String> {
     fields.iter().find_map(|(k, v)| {
         if k == name {
             match v {
@@ -259,7 +369,7 @@ fn field_str(fields: &[(String, serde_json::Value)], name: &str) -> Option<Strin
 }
 
 /// Get an i64 field value by name.
-fn field_i64(fields: &[(String, serde_json::Value)], name: &str) -> i64 {
+pub(crate) fn field_i64(fields: &[(String, serde_json::Value)], name: &str) -> i64 {
     fields
         .iter()
         .find_map(|(k, v)| if k == name { v.as_i64() } else { None })
@@ -267,7 +377,7 @@ fn field_i64(fields: &[(String, serde_json::Value)], name: &str) -> i64 {
 }
 
 /// Get a u64 field value by name.
-fn field_u64(fields: &[(String, serde_json::Value)], name: &str) -> u64 {
+pub(crate) fn field_u64(fields: &[(String, serde_json::Value)], name: &str) -> u64 {
     fields
         .iter()
         .find_map(|(k, v)| if k == name { v.as_u64() } else { None })
@@ -275,7 +385,7 @@ fn field_u64(fields: &[(String, serde_json::Value)], name: &str) -> u64 {
 }
 
 /// Parse "com.example.app ||| 1.2.3 (build)" into (name, version).
-fn parse_app_description(desc: &str) -> (String, String) {
+pub(crate) fn parse_app_description(desc: &str) -> (String, String) {
     if let Some((name, version)) = desc.split_once(" ||| ") {
         (name.trim().to_string(), version.trim().to_string())
     } else {

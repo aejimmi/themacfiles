@@ -1,6 +1,14 @@
 //! Output formatting for terminal tables and JSON.
 
-use crate::schema::{DecodedRecord, EventInfo, Summary};
+#[path = "output_summary.rs"]
+mod output_summary;
+
+use crate::schema::{AppProfile, DecodedRecord, EventInfo, Summary};
+use output_summary::{
+    format_binaries_section, format_counters_section, format_device_section, format_ml_section,
+    format_periods_inline, format_predictions_section, format_sampling_section,
+    format_sinks_section,
+};
 use std::fmt::Write;
 use tabled::{
     Table,
@@ -55,6 +63,9 @@ pub fn format_summary(summary: &Summary) -> String {
         "{} telemetry records collected this period",
         summary.total_records
     );
+    if !summary.collection_periods.is_empty() {
+        format_periods_inline(&mut out, &summary.collection_periods);
+    }
     if summary.opt_out_count > 0 {
         let _ = writeln!(
             out,
@@ -76,25 +87,22 @@ pub fn format_summary(summary: &Summary) -> String {
     // 5. Behavioral Predictions
     format_predictions_section(&mut out, ins);
 
-    // 6. Surveillance Counters
+    // 6. Your Machine
+    format_device_section(&mut out, ins, summary);
+
+    // 7. Surveillance Counters
     format_counters_section(&mut out, ins);
 
-    // 7. Where Your Data Goes
+    // 8. Where Your Data Goes
     format_sinks_section(&mut out, ins);
 
-    // 8. Sampling
+    // 9. Sampling
     format_sampling_section(&mut out, ins);
-
-    // 9. Collection Periods
-    format_periods_section(&mut out, summary);
-
-    // 10. Device State
-    format_device_state_section(&mut out, summary);
 
     out
 }
 
-/// Format the apps section with foreground/background distinction.
+/// Format the apps section with foreground/background distinction and capability indicators.
 fn format_apps_section(out: &mut String, ins: &crate::schema::Insights) {
     if ins.apps.is_empty() {
         return;
@@ -108,7 +116,9 @@ fn format_apps_section(out: &mut String, ins: &crate::schema::Insights) {
     );
     let _ = writeln!(out, "  (* = foreground app)\n");
 
-    let app_rows: Vec<[String; 6]> = ins
+    let has_caps = ins.apps.iter().any(|a| !a.caps.is_empty());
+
+    let app_rows: Vec<[String; 7]> = ins
         .apps
         .iter()
         .map(|a| {
@@ -121,9 +131,11 @@ fn format_apps_section(out: &mut String, ins: &crate::schema::Insights) {
                 format_duration(a.uptime_seconds),
                 a.activations.to_string(),
                 a.launches.to_string(),
+                a.caps.clone(),
             ]
         })
         .collect();
+
     let mut header = vec![[
         "App".into(),
         "Version".into(),
@@ -131,6 +143,7 @@ fn format_apps_section(out: &mut String, ins: &crate::schema::Insights) {
         "Uptime".into(),
         "Activations".into(),
         "Launches".into(),
+        "Caps".into(),
     ]];
     header.extend(app_rows);
     let table = Table::new(header)
@@ -138,196 +151,11 @@ fn format_apps_section(out: &mut String, ins: &crate::schema::Insights) {
         .with(Style::rounded())
         .to_string();
     out.push_str(&table);
+
+    if has_caps {
+        let _ = writeln!(out, "  C=clipboard K=keychain N=network S=security");
+    }
     out.push('\n');
-}
-
-/// Format the binaries fingerprinted section.
-fn format_binaries_section(out: &mut String, ins: &crate::schema::Insights) {
-    if ins.executables_measured == 0 && ins.fingerprinted_binaries.is_empty() {
-        return;
-    }
-
-    let _ = writeln!(out, "\n--- Binaries Fingerprinted (CDHash) ---");
-    let _ = writeln!(out, "  {} executables measured", ins.executables_measured);
-
-    if !ins.fingerprinted_binaries.is_empty() {
-        let _ = writeln!(
-            out,
-            "  {} unique binaries with cryptographic fingerprints:\n",
-            ins.fingerprinted_binaries.len()
-        );
-        for fp in ins.fingerprinted_binaries.iter().take(10) {
-            let id = if fp.signing_id.is_empty() {
-                "(unsigned)".to_string()
-            } else {
-                fp.signing_id.clone()
-            };
-            let _ = writeln!(out, "  {}  {}", fp.cdhash, id);
-        }
-        if ins.fingerprinted_binaries.len() > 10 {
-            let _ = writeln!(
-                out,
-                "  ... and {} more",
-                ins.fingerprinted_binaries.len() - 10
-            );
-        }
-    }
-
-    let _ = writeln!(
-        out,
-        "\n  Apple has a cryptographic inventory of every binary on your machine."
-    );
-}
-
-/// Format the ML models section.
-fn format_ml_section(out: &mut String, ins: &crate::schema::Insights) {
-    if ins.ml_models.is_empty() {
-        return;
-    }
-
-    let _ = writeln!(
-        out,
-        "\n--- {} ML Models Running On Your Data ---",
-        ins.ml_models.len()
-    );
-    for m in &ins.ml_models {
-        let cu = if m.compute_unit.is_empty() {
-            String::new()
-        } else {
-            format!(" [{}]", m.compute_unit)
-        };
-        let _ = writeln!(out, "  {}{} ({})", m.name, cu, m.bundle);
-    }
-}
-
-/// Format the behavioral predictions section.
-fn format_predictions_section(out: &mut String, ins: &crate::schema::Insights) {
-    if ins.intelligence_views.is_empty() {
-        return;
-    }
-
-    let _ = writeln!(
-        out,
-        "\n--- {} Behavioral Predictions Generated ---",
-        ins.intelligence_views.len()
-    );
-    for v in &ins.intelligence_views {
-        let _ = writeln!(out, "  {v}");
-    }
-}
-
-/// Format the surveillance counters section.
-fn format_counters_section(out: &mut String, ins: &crate::schema::Insights) {
-    out.push('\n');
-    out.push_str("--- Surveillance Counters ---\n");
-    if ins.bt_devices_found > 0 {
-        let _ = writeln!(
-            out,
-            "  Bluetooth: {} unique devices detected nearby",
-            ins.bt_devices_found
-        );
-    }
-    if ins.wifi_scans > 0 {
-        let _ = writeln!(out, "  WiFi: {} scan result records", ins.wifi_scans);
-    }
-    if ins.profiling_items > 0 {
-        let _ = writeln!(
-            out,
-            "  Behavioral profile: {} unique items about you",
-            ins.profiling_items
-        );
-    }
-    if ins.enrichment_rules > 0 {
-        let _ = writeln!(
-            out,
-            "  {} event enrichment rules injecting device state into events",
-            ins.enrichment_rules
-        );
-    }
-    if ins.total_event_types > 0 {
-        let _ = writeln!(
-            out,
-            "  {} total event types defined (the full surveillance catalog)",
-            ins.total_event_types
-        );
-    }
-    if !ins.budget_disabled.is_empty() {
-        let _ = writeln!(
-            out,
-            "  {} transforms hit their data budget cap and were throttled",
-            ins.budget_disabled.len()
-        );
-    }
-}
-
-/// Format the data sinks section.
-fn format_sinks_section(out: &mut String, ins: &crate::schema::Insights) {
-    if ins.data_sinks.is_empty() {
-        return;
-    }
-
-    out.push_str("\n--- Where Your Data Goes ---\n");
-    for s in &ins.data_sinks {
-        let label = match s.name.as_str() {
-            "Daily" => "Daily (submitted to Apple every day)",
-            "Never" => "Never (local only / feeds other transforms)",
-            "90Day" => "90Day (quarterly submission to Apple)",
-            "da2" => "da2 (secondary Apple pipeline)",
-            other => other,
-        };
-        let _ = writeln!(out, "  {} transforms -> {}", s.transform_count, label);
-    }
-}
-
-/// Format the sampling section.
-fn format_sampling_section(out: &mut String, ins: &crate::schema::Insights) {
-    let samp = &ins.sampling;
-    if samp.collecting == 0 && samp.sampled_out == 0 {
-        return;
-    }
-
-    out.push_str("\n--- Sampling (your device's lottery) ---\n");
-    let _ = writeln!(
-        out,
-        "  {} transforms actively collecting on YOUR device",
-        samp.collecting
-    );
-    let _ = writeln!(
-        out,
-        "  {} transforms you were sampled OUT of (not collecting)",
-        samp.sampled_out
-    );
-    let _ = writeln!(
-        out,
-        "  {} transforms with no sampling (always collected)",
-        samp.unsampled
-    );
-}
-
-/// Format collection periods section.
-fn format_periods_section(out: &mut String, summary: &Summary) {
-    if summary.collection_periods.is_empty() {
-        return;
-    }
-
-    out.push_str("\n--- Collection Periods ---\n");
-    for period in &summary.collection_periods {
-        let start = &period.start_timestamp;
-        let end = &period.end_boundary;
-        let _ = writeln!(out, "  {} | {} -> {}", period.period_label(), start, end);
-    }
-}
-
-/// Format device state section.
-fn format_device_state_section(out: &mut String, summary: &Summary) {
-    if summary.queried_states.is_empty() {
-        return;
-    }
-
-    out.push_str("\n--- Device State ---\n");
-    for (k, v) in &summary.queried_states {
-        let _ = writeln!(out, "  {k}: {v}");
-    }
 }
 
 /// Format seconds into a human-readable duration.
@@ -369,6 +197,90 @@ pub fn format_events_table(events: &[EventInfo]) -> String {
 /// Format event info as JSON.
 pub fn format_events_json(events: &[EventInfo]) -> serde_json::Result<String> {
     serde_json::to_string_pretty(events)
+}
+
+/// Format a detailed per-app profile for terminal display.
+pub fn format_app_profile(profiles: &[AppProfile]) -> String {
+    if profiles.is_empty() {
+        return "No matching app profiles found.".into();
+    }
+
+    let mut out = String::with_capacity(4096);
+
+    for p in profiles {
+        let _ = writeln!(out, "=== {} ===", p.bundle_id);
+        if !p.version.is_empty() {
+            let _ = writeln!(out, "  Version: {}", p.version);
+        }
+        let _ = writeln!(out, "  Records: {}", p.record_count);
+
+        if p.active_seconds > 0 || p.uptime_seconds > 0 {
+            let _ = writeln!(
+                out,
+                "  Active: {}  Uptime: {}  Foreground: {}",
+                format_duration(p.active_seconds),
+                format_duration(p.uptime_seconds),
+                if p.foreground { "yes" } else { "no" },
+            );
+            let _ = writeln!(
+                out,
+                "  Activations: {}  Launches: {}",
+                p.activations, p.launches,
+            );
+        }
+
+        if !p.capabilities.is_empty() {
+            let _ = writeln!(out, "\n  Capabilities:");
+            for cap in &p.capabilities {
+                let _ = writeln!(out, "    {} ({})", cap.kind, cap.source_event);
+            }
+        }
+
+        if !p.security_apis.is_empty() {
+            let _ = writeln!(out, "\n  Security APIs:");
+            for api in &p.security_apis {
+                let _ = writeln!(out, "    {api}");
+            }
+        }
+
+        if !p.binaries.is_empty() {
+            let _ = writeln!(out, "\n  Binaries Fingerprinted:");
+            for b in &p.binaries {
+                let id = if b.signing_id.is_empty() {
+                    "(unsigned)"
+                } else {
+                    &b.signing_id
+                };
+                let _ = writeln!(out, "    {}  {}", b.cdhash, id);
+            }
+        }
+
+        if !p.network.interface.is_empty() || !p.network.bytes_values.is_empty() {
+            let _ = writeln!(out, "\n  Network:");
+            if !p.network.interface.is_empty() {
+                let _ = writeln!(out, "    Interface: {}", p.network.interface);
+            }
+            if !p.network.bytes_values.is_empty() {
+                let _ = writeln!(out, "    Byte values: {:?}", p.network.bytes_values);
+            }
+        }
+
+        if !p.hardware.is_empty() {
+            let _ = writeln!(out, "\n  Hardware:");
+            for (k, v) in &p.hardware {
+                let _ = writeln!(out, "    {k}: {v}");
+            }
+        }
+
+        out.push('\n');
+    }
+
+    out
+}
+
+/// Format app profiles as JSON.
+pub fn format_app_profile_json(profiles: &[AppProfile]) -> serde_json::Result<String> {
+    serde_json::to_string_pretty(profiles)
 }
 
 /// Format a vector of labeled fields as a compact display string.

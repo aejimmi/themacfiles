@@ -67,7 +67,14 @@ fn test_format_events_table_with_data() {
 
 #[test]
 fn test_format_summary() {
-    use crate::schema::Insights;
+    use crate::schema::{DeviceInsight, Insights};
+
+    let mut insights = Insights::default();
+    insights.device = DeviceInsight {
+        low_power_mode: "false".to_string(),
+        thermal_state: "Nominal".to_string(),
+        ..Default::default()
+    };
 
     let summary = Summary {
         category_counts: vec![(Category::Apps, 10), (Category::Location, 5)],
@@ -77,14 +84,16 @@ fn test_format_summary() {
         top_events: vec![("com.apple.test".into(), 8)],
         collection_periods: vec![],
         queried_states: vec![("lowPowerModeEnabled".into(), "false".into())],
-        insights: Insights::default(),
+        insights,
     };
 
     let output = format_summary(&summary);
     assert!(output.contains("15 telemetry records"));
     assert!(output.contains("DESPITE analytics being disabled"));
     assert!(output.contains("Surveillance Counters"));
-    assert!(output.contains("lowPowerModeEnabled"));
+    assert!(output.contains("Your Machine"));
+    assert!(output.contains("Low Power Mode: false"));
+    assert!(output.contains("Thermal: Nominal"));
 }
 
 #[test]

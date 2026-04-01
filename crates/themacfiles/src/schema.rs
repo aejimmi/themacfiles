@@ -134,6 +134,31 @@ pub struct Insights {
     pub total_event_types: usize,
     /// Transforms disabled by Apple (hit budget cap).
     pub budget_disabled: Vec<String>,
+    /// Device identity information extracted from telemetry.
+    pub device: DeviceInsight,
+}
+
+/// Device identity information Apple has collected.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct DeviceInsight {
+    /// Platform (e.g. "macOS").
+    pub platform: String,
+    /// OS version range (e.g. "26.0-26.1").
+    pub os_version: String,
+    /// Safari version string (e.g. "622.2.11.11.9").
+    pub safari_version: String,
+    /// WiFi radio technology (e.g. "11AX" = WiFi 6).
+    pub wifi_radio: String,
+    /// Primary network interface (e.g. "WiFi").
+    pub network_interface: String,
+    /// Thermal pressure level (e.g. "Nominal").
+    pub thermal_state: String,
+    /// Low-power mode status.
+    pub low_power_mode: String,
+    /// Device model hash (opaque identifier from Tips URL).
+    pub model_hash: String,
+    /// Apple Intelligence locale.
+    pub ai_locale: String,
 }
 
 /// Where collected data goes.
@@ -173,6 +198,8 @@ pub struct AppInsight {
     pub activations: i64,
     /// Number of times the app was launched.
     pub launches: i64,
+    /// Short capability indicators: C=clipboard, K=keychain, N=network, S=security.
+    pub caps: String,
 }
 
 /// A binary fingerprinted by syspolicy ExecutableMeasurement.
@@ -230,4 +257,77 @@ pub struct TransformStateRow {
     pub transform_value: String,
     /// Number of events aggregated.
     pub event_count: u64,
+}
+
+/// Everything Apple tracks about a single application.
+#[derive(Debug, Clone, Serialize)]
+pub struct AppProfile {
+    /// Bundle identifier (e.g. "com.apple.Safari").
+    pub bundle_id: String,
+    /// App version string.
+    pub version: String,
+    /// Seconds of active (foreground) use.
+    pub active_seconds: i64,
+    /// Total uptime in seconds.
+    pub uptime_seconds: i64,
+    /// Whether the app was used in the foreground.
+    pub foreground: bool,
+    /// Number of times the user switched to this app.
+    pub activations: i64,
+    /// Number of times the app was launched.
+    pub launches: i64,
+    /// Detected capabilities (clipboard, keychain, network access).
+    pub capabilities: Vec<AppCapability>,
+    /// Fingerprinted binaries associated with this app.
+    pub binaries: Vec<BinaryFingerprint>,
+    /// Security API calls detected.
+    pub security_apis: Vec<String>,
+    /// Network transfer information.
+    pub network: AppNetworkInfo,
+    /// Hardware-related key-value pairs (GPU, CPU, Metal, memory, thermal).
+    pub hardware: Vec<(String, String)>,
+    /// Total number of telemetry records referencing this app.
+    pub record_count: usize,
+}
+
+impl AppProfile {
+    /// Short capability string: C=clipboard, K=keychain, N=network, S=security.
+    pub fn caps_string(&self) -> String {
+        let mut s = String::with_capacity(4);
+        if self.capabilities.iter().any(|c| c.kind == "Clipboard") {
+            s.push('C');
+        }
+        if self.capabilities.iter().any(|c| c.kind == "Keychain") {
+            s.push('K');
+        }
+        if self
+            .capabilities
+            .iter()
+            .any(|c| c.kind == "NetworkOutgoing")
+        {
+            s.push('N');
+        }
+        if !self.security_apis.is_empty() {
+            s.push('S');
+        }
+        s
+    }
+}
+
+/// A detected capability for an application.
+#[derive(Debug, Clone, Serialize)]
+pub struct AppCapability {
+    /// Capability kind: "Clipboard", "Keychain", "NetworkOutgoing".
+    pub kind: String,
+    /// The event that revealed this capability.
+    pub source_event: String,
+}
+
+/// Network transfer information for an application.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct AppNetworkInfo {
+    /// Network interface type (e.g. "WiFi", "Cellular").
+    pub interface: String,
+    /// Raw network byte values from records.
+    pub bytes_values: Vec<i64>,
 }

@@ -2,9 +2,9 @@
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
+use std::path::{Path, PathBuf};
 use themacfiles::category::Category;
 use themacfiles::output;
-use std::path::{Path, PathBuf};
 
 /// The default location of analyticsd databases on macOS.
 const DEFAULT_DIR: &str = "/private/var/db/analyticsd";
@@ -62,6 +62,17 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Show everything Apple tracks about a specific app.
+    App {
+        /// Substring match on bundle ID (case-insensitive).
+        query: String,
+        /// Directory containing config.sqlite + state.sqlite.
+        #[arg(default_value = DEFAULT_DIR)]
+        path: PathBuf,
+        /// Output as JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -90,6 +101,7 @@ fn main() -> Result<()> {
             category,
             json,
         } => cmd_events(&path, category, json),
+        Commands::App { query, path, json } => cmd_app(&query, &path, json),
     }
 }
 
@@ -136,6 +148,23 @@ fn cmd_summary(dir: &Path) -> Result<()> {
     let (config, state) = resolve_paths(dir)?;
     let summary = themacfiles::summary(&config, &state).context("failed to generate summary")?;
     println!("{}", output::format_summary(&summary));
+    Ok(())
+}
+
+/// Execute the `app` subcommand.
+fn cmd_app(query: &str, dir: &Path, json: bool) -> Result<()> {
+    let (config, state) = resolve_paths(dir)?;
+    let profiles = themacfiles::app_profiles_for(&config, &state, Some(query))
+        .context("failed to build app profiles")?;
+
+    if json {
+        let out = output::format_app_profile_json(&profiles)
+            .context("failed to serialize profiles as JSON")?;
+        println!("{out}");
+    } else {
+        println!("{}", output::format_app_profile(&profiles));
+    }
+
     Ok(())
 }
 
