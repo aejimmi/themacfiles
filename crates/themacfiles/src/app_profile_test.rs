@@ -1,3 +1,5 @@
+#![allow(clippy::indexing_slicing)] // Panicking on bad index is fine in tests
+
 use super::*;
 use crate::category::Category;
 use crate::schema::DecodedRecord;

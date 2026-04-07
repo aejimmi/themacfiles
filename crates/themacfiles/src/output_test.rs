@@ -69,10 +69,12 @@ fn test_format_events_table_with_data() {
 fn test_format_summary() {
     use crate::schema::{DeviceInsight, Insights};
 
-    let mut insights = Insights::default();
-    insights.device = DeviceInsight {
-        low_power_mode: "false".to_string(),
-        thermal_state: "Nominal".to_string(),
+    let insights = Insights {
+        device: DeviceInsight {
+            low_power_mode: "false".to_string(),
+            thermal_state: "Nominal".to_string(),
+            ..Default::default()
+        },
         ..Default::default()
     };
 
