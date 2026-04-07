@@ -136,6 +136,22 @@ pub struct Insights {
     pub budget_disabled: Vec<String>,
     /// Device identity information extracted from telemetry.
     pub device: DeviceInsight,
+    /// WiFi link sessions with location-revealing details.
+    pub wifi_sessions: Vec<WifiSessionInsight>,
+    /// Bluetooth scan activity per scanning app.
+    pub bt_scans: Vec<BluetoothScanInsight>,
+    /// Safari browsing profile.
+    pub safari: SafariInsight,
+    /// Privacy tool awareness (VPN, content filter, DNS proxy).
+    pub privacy: PrivacyInsight,
+    /// Location tracking details.
+    pub location: LocationInsight,
+    /// Per-app security API usage.
+    pub security_apis: Vec<SecurityApiInsight>,
+    /// Photos library profile.
+    pub photos: PhotosInsight,
+    /// Behavioral feedback domains actively tracked.
+    pub behavioral_domains: Vec<String>,
 }
 
 /// Device identity information Apple has collected.
@@ -220,6 +236,123 @@ pub struct MlModelInsight {
     pub bundle: String,
     /// Compute unit (CPU, ANE, GPU).
     pub compute_unit: String,
+}
+
+/// A WiFi link session revealing network and location details.
+#[derive(Debug, Clone, Serialize)]
+pub struct WifiSessionInsight {
+    /// Router OUI (first 3 bytes of BSSID).
+    pub oui: String,
+    /// Country code advertised by the access point.
+    pub country: String,
+    /// WiFi band (e.g. "5" for 5GHz).
+    pub band: String,
+    /// Whether this is a personal hotspot.
+    pub is_personal_hotspot: bool,
+    /// Whether WPA3 security is used.
+    pub has_wpa3: bool,
+    /// Why the device joined this network.
+    pub join_reason: String,
+    /// Why the device disconnected.
+    pub disconnect_reason: String,
+    /// Private MAC address type (Static or Rotating).
+    pub private_mac_type: String,
+    /// Session duration in seconds.
+    pub session_duration_secs: i64,
+    /// Bytes received.
+    pub rx_bytes: i64,
+    /// Bytes transmitted.
+    pub tx_bytes: i64,
+}
+
+/// Bluetooth scan activity per application.
+#[derive(Debug, Clone, Serialize)]
+pub struct BluetoothScanInsight {
+    /// Bundle ID of the scanning app.
+    pub bundle_id: String,
+    /// Use case (e.g. "FindMyNotOptedIn").
+    pub use_case: String,
+    /// Maximum unique devices found in a single session.
+    pub max_devices_found: u64,
+    /// Paired devices found.
+    pub paired_found: u64,
+    /// Total scan sessions.
+    pub scan_count: u64,
+}
+
+/// Safari browsing profile.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SafariInsight {
+    /// Default search engine.
+    pub search_engine: String,
+    /// Typical tab count.
+    pub tab_count: u64,
+    /// Number of search queries tracked.
+    pub search_count: u64,
+    /// Form submissions detected.
+    pub form_submissions: u64,
+    /// Webpage locales visited.
+    pub webpage_locales: Vec<String>,
+    /// User region code (e.g. "DK").
+    pub user_region: String,
+}
+
+/// What Apple knows about your privacy tools.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PrivacyInsight {
+    /// Whether a VPN connection was detected.
+    pub vpn_detected: bool,
+    /// Whether a content filter was detected.
+    pub content_filter_detected: bool,
+    /// Whether a DNS proxy was detected.
+    pub dns_proxy_detected: bool,
+    /// iCloud Private Relay status.
+    pub private_relay_status: String,
+    /// Total DNS stalls observed.
+    pub dns_stalls: i64,
+    /// Total connection failures observed.
+    pub connection_failures: i64,
+}
+
+/// Location tracking profile.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LocationInsight {
+    /// Whether a "home" location was detected.
+    pub home_detected: bool,
+    /// Number of WiFi-based location queries.
+    pub location_queries: u64,
+    /// Number of location awareness heartbeats.
+    pub heartbeat_count: u64,
+    /// Whether POI tile pre-downloads occurred.
+    pub poi_tile_downloads: bool,
+}
+
+/// Per-app security API usage.
+#[derive(Debug, Clone, Serialize)]
+pub struct SecurityApiInsight {
+    /// App identifier.
+    pub app: String,
+    /// Security APIs called by this app.
+    pub apis: Vec<String>,
+}
+
+/// Photos library analysis profile.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PhotosInsight {
+    /// Total photo assets.
+    pub total_assets: u64,
+    /// Number of moments (groups).
+    pub moments: u64,
+    /// Library size category.
+    pub library_size: String,
+    /// Whether Apple Music subscription is active.
+    pub has_apple_music: bool,
+    /// Whether iCloud Photos is enabled.
+    pub icloud_photos_enabled: bool,
+    /// Face analysis completion (0.0-1.0).
+    pub face_analysis_progress: f64,
+    /// Scene analysis completion (0.0-1.0).
+    pub scene_analysis_progress: f64,
 }
 
 /// A collection time period from the agg_session table.

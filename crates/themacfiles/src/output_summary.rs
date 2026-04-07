@@ -220,6 +220,13 @@ pub(super) fn format_counters_section(out: &mut String, ins: &Insights) {
             ins.budget_disabled.len()
         );
     }
+    if !ins.behavioral_domains.is_empty() {
+        let _ = writeln!(
+            out,
+            "  Behavioral feedback loops: {}",
+            ins.behavioral_domains.join(", ")
+        );
+    }
 }
 
 /// Format the data sinks section.

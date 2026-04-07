@@ -22,6 +22,7 @@ pub mod category;
 pub mod db;
 pub mod decode;
 pub mod error;
+pub mod extract;
 pub mod output;
 pub mod schema;
 
@@ -29,12 +30,9 @@ pub mod schema;
 mod testutil;
 
 use crate::error::{MacfilesError, Result};
-use crate::schema::{
-    AppInsight, BinaryFingerprint, DecodedRecord, DeviceInsight, EventInfo, Insights,
-    MlModelInsight, Summary,
-};
+use crate::schema::{DecodedRecord, EventInfo, Summary};
 use rusqlite::Connection;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 use tracing::warn;
 
@@ -98,7 +96,7 @@ pub fn summary(config_path: &Path, state_path: &Path) -> Result<Summary> {
 
     let collection_periods = db::load_agg_sessions(&state_conn)?;
     let queried_states = db::load_queried_states(&state_conn)?;
-    let mut insights = extract_insights(&records);
+    let mut insights = extract::extract_insights(&records);
 
     // Enrich app insights with capability indicators from app profiles.
     let profiles = app_profile::build_app_profiles(&records, None);
@@ -145,7 +143,7 @@ pub fn summary(config_path: &Path, state_path: &Path) -> Result<Summary> {
         }
     }
     // Enrich device insight from decoded records.
-    extract_device_insights(&records, &mut insights.device);
+    extract::extract_device_insights(&records, &mut insights.device);
 
     Ok(Summary {
         category_counts: cat_vec,
@@ -157,200 +155,6 @@ pub fn summary(config_path: &Path, state_path: &Path) -> Result<Summary> {
         queried_states,
         insights,
     })
-}
-
-/// Extract high-level insights from decoded records.
-fn extract_insights(records: &[DecodedRecord]) -> Insights {
-    let mut insights = Insights::default();
-    let mut seen_apps: HashSet<String> = HashSet::new();
-    let mut seen_models: HashSet<String> = HashSet::new();
-    let mut seen_views: HashSet<String> = HashSet::new();
-    let mut seen_binaries: HashSet<String> = HashSet::new();
-    let mut max_bt_devices: u64 = 0;
-
-    for r in records {
-        let ev = r.event_names.first().map_or("", String::as_str);
-        let fields = &r.fields;
-
-        // App usage — include both foreground and background apps
-        if ev == "com.apple.osanalytics.appUsage"
-            && let Some(desc) = field_str(fields, "appDescription")
-            && !seen_apps.contains(&desc)
-        {
-            seen_apps.insert(desc.clone());
-            let is_fg = field_str(fields, "foreground").as_deref() == Some("YES");
-            let (name, version) = parse_app_description(&desc);
-            let active = field_i64(fields, "sum_of_activeTime");
-            let uptime = field_i64(fields, "sum_of_uptime");
-            let activations = field_i64(fields, "sum_of_activations");
-            let launches = field_i64(fields, "sum_of_activityPeriods");
-            insights.apps.push(AppInsight {
-                name,
-                version,
-                active_seconds: active,
-                uptime_seconds: uptime,
-                foreground: is_fg,
-                activations,
-                launches,
-                caps: String::new(),
-            });
-        }
-
-        // ML models
-        if ev == "com.apple.CoreML.MLLoader"
-            && let Some(model_name) = field_str(fields, "modelName")
-        {
-            let bundle = field_str(fields, "bundleIdentifier").unwrap_or_default();
-            let key = format!("{model_name}:{bundle}");
-            if !seen_models.contains(&key) {
-                seen_models.insert(key);
-                insights.ml_models.push(MlModelInsight {
-                    name: model_name,
-                    bundle,
-                    compute_unit: String::new(),
-                });
-            }
-        }
-
-        // Espresso (neural engine)
-        if ev == "com.apple.Espresso.SegmentationAnalytics"
-            && let Some(cu) = field_str(fields, "computeUnit")
-        {
-            let bundle = field_str(fields, "bundleIdentifier").unwrap_or_default();
-            let hash = field_str(fields, "modelHash").unwrap_or_default();
-            let key = format!("{hash}:{cu}");
-            if !seen_models.contains(&key) {
-                seen_models.insert(key);
-                insights.ml_models.push(MlModelInsight {
-                    name: format!("espresso:{}", &hash[..8.min(hash.len())]),
-                    bundle,
-                    compute_unit: cu,
-                });
-            }
-        }
-
-        // Intelligence views
-        if ev.contains("intelligenceplatform.ViewGeneration")
-            && let Some(view) = field_str(fields, "ViewName")
-            && !seen_views.contains(&view)
-        {
-            seen_views.insert(view.clone());
-            insights.intelligence_views.push(view);
-        }
-
-        // Bluetooth scan — track max devices found
-        if ev == "com.apple.Bluetooth.LEScanSession" {
-            let found = field_u64(fields, "NumberOfUniqueDevicesFound");
-            if found > max_bt_devices {
-                max_bt_devices = found;
-            }
-        }
-
-        // WiFi scans
-        if ev == "com.apple.wifi.scanResults" {
-            insights.wifi_scans += 1;
-        }
-
-        // Executable measurement — count and extract fingerprints
-        if ev == "com.apple.syspolicy.ExecutableMeasurement" {
-            insights.executables_measured += 1;
-            let cdhash = field_str(fields, "cdhash").unwrap_or_default();
-            let signing_id = field_str(fields, "signingIdentifier").unwrap_or_default();
-            if !cdhash.is_empty() && !seen_binaries.contains(&cdhash) {
-                seen_binaries.insert(cdhash.clone());
-                insights
-                    .fingerprinted_binaries
-                    .push(BinaryFingerprint { cdhash, signing_id });
-            }
-        }
-
-        // Personalization portrait
-        if ev.contains("PersonalizationPortrait.TopicStoreStats") {
-            let items = field_u64(fields, "daily_maximum_uniqueItems");
-            if items > insights.profiling_items {
-                insights.profiling_items = items;
-            }
-        }
-    }
-
-    insights.bt_devices_found = max_bt_devices;
-    // Sort: foreground first (by active time desc), then background (by uptime desc)
-    insights.apps.sort_by(|a, b| {
-        b.foreground.cmp(&a.foreground).then_with(|| {
-            if a.foreground {
-                b.active_seconds.cmp(&a.active_seconds)
-            } else {
-                b.uptime_seconds.cmp(&a.uptime_seconds)
-            }
-        })
-    });
-    insights
-}
-
-/// Extract device identity information from decoded records.
-///
-/// Scans for Safari version (reveals browser/OS), Apple Intelligence locale,
-/// and Tips URLs (contain platform, OS version, and model hash).
-fn extract_device_insights(records: &[DecodedRecord], device: &mut DeviceInsight) {
-    for r in records {
-        let ev = r.event_names.first().map_or("", String::as_str);
-        let fields = &r.fields;
-
-        // Safari events carry safariClient and safariVersion.
-        if ev.starts_with("com.apple.Safari") || r.transform_name.contains("Safari") {
-            if let Some(client) = field_str(fields, "safariClient")
-                && device.platform.is_empty()
-                && client.contains("Mac")
-            {
-                device.platform = "macOS".to_string();
-            }
-            if let Some(ver) = field_str(fields, "safariVersion")
-                && device.safari_version.is_empty()
-            {
-                device.safari_version = ver;
-            }
-        }
-
-        // Apple Intelligence status reveals locale.
-        if (ev.contains("AppleIntelligence")
-            || ev.contains("AppleIntelligenceReporting"))
-            && let Some(locale) = field_str(fields, "AppleIntelligenceLocale")
-            && device.ai_locale.is_empty()
-        {
-            device.ai_locale = locale;
-        }
-
-        // Tips feed URLs embed model hash, platform, and osVersion.
-        for (_, val) in fields {
-            if let Some(s) = val.as_str()
-                && s.contains("ipcdn.apple.com")
-                && s.contains("osVersion=")
-            {
-                parse_tips_url(s, device);
-            }
-        }
-    }
-}
-
-/// Parse device identity parameters from an Apple Tips URL.
-fn parse_tips_url(url: &str, device: &mut DeviceInsight) {
-    for param in url.split('&') {
-        let param = param.split('?').next_back().unwrap_or(param);
-        if let Some((key, val)) = param.split_once('=') {
-            match key {
-                "osVersion" if device.os_version.is_empty() => {
-                    device.os_version = val.to_string();
-                }
-                "platform" if device.platform.is_empty() => {
-                    device.platform = val.to_string();
-                }
-                "model" if device.model_hash.is_empty() => {
-                    device.model_hash = val.to_string();
-                }
-                _ => {}
-            }
-        }
-    }
 }
 
 /// Get a string field value by name.
@@ -382,15 +186,6 @@ pub(crate) fn field_u64(fields: &[(String, serde_json::Value)], name: &str) -> u
         .iter()
         .find_map(|(k, v)| if k == name { v.as_u64() } else { None })
         .unwrap_or(0)
-}
-
-/// Parse "com.example.app ||| 1.2.3 (build)" into (name, version).
-pub(crate) fn parse_app_description(desc: &str) -> (String, String) {
-    if let Some((name, version)) = desc.split_once(" ||| ") {
-        (name.trim().to_string(), version.trim().to_string())
-    } else {
-        (desc.to_string(), String::new())
-    }
 }
 
 /// Open both databases by copying to a temp directory first.

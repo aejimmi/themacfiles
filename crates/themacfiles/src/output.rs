@@ -3,11 +3,19 @@
 #[path = "output_summary.rs"]
 mod output_summary;
 
+#[path = "output_summary_detail.rs"]
+mod output_summary_detail;
+
 use crate::schema::{AppProfile, DecodedRecord, EventInfo, Summary};
 use output_summary::{
     format_binaries_section, format_counters_section, format_device_section, format_ml_section,
     format_periods_inline, format_predictions_section, format_sampling_section,
     format_sinks_section,
+};
+use output_summary_detail::{
+    format_bt_detail_section, format_location_section, format_photos_section,
+    format_privacy_section, format_safari_section, format_security_api_section,
+    format_wifi_section,
 };
 use std::fmt::Write;
 use tabled::{
@@ -87,16 +95,25 @@ pub fn format_summary(summary: &Summary) -> String {
     // 5. Behavioral Predictions
     format_predictions_section(&mut out, ins);
 
-    // 6. Your Machine
+    // 6-12. Detail sections
+    format_wifi_section(&mut out, ins);
+    format_bt_detail_section(&mut out, ins);
+    format_safari_section(&mut out, ins);
+    format_privacy_section(&mut out, ins);
+    format_location_section(&mut out, ins);
+    format_security_api_section(&mut out, ins);
+    format_photos_section(&mut out, ins);
+
+    // 13. Your Machine
     format_device_section(&mut out, ins, summary);
 
-    // 7. Surveillance Counters
+    // 14. Surveillance Counters
     format_counters_section(&mut out, ins);
 
-    // 8. Where Your Data Goes
+    // 15. Where Your Data Goes
     format_sinks_section(&mut out, ins);
 
-    // 9. Sampling
+    // 16. Sampling
     format_sampling_section(&mut out, ins);
 
     out

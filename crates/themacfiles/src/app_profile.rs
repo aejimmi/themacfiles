@@ -1,7 +1,8 @@
 //! App profile extraction: groups decoded records by bundle ID and classifies capabilities.
 
+use crate::extract::parse_app_description;
 use crate::schema::{AppCapability, AppNetworkInfo, AppProfile, BinaryFingerprint, DecodedRecord};
-use crate::{field_i64, field_str, parse_app_description};
+use crate::{field_i64, field_str};
 use std::collections::HashMap;
 
 /// Known field names that contain a bundle identifier.
@@ -25,10 +26,10 @@ pub fn build_app_profiles(records: &[DecodedRecord], query: Option<&str>) -> Vec
 
     for r in records {
         // When querying, match broadly: any field value containing the query
-        if let Some(q) = query {
-            if !record_matches_query(r, q) {
-                continue;
-            }
+        if let Some(q) = query
+            && !record_matches_query(r, q)
+        {
+            continue;
         }
 
         let bundle_id = extract_bundle_id(r)
@@ -103,10 +104,10 @@ fn extract_bundle_id_fuzzy(record: &DecodedRecord, query: &str) -> Option<String
             let lower = s.to_ascii_lowercase();
             if lower.contains(&q) {
                 // If it's a path, extract .app name
-                if s.contains(".app") {
-                    if let Some(app) = extract_bundle_from_path(s) {
-                        return Some(app);
-                    }
+                if s.contains(".app")
+                    && let Some(app) = extract_bundle_from_path(s)
+                {
+                    return Some(app);
                 }
                 // If it looks like a bundle ID
                 if looks_like_bundle_id(s) {
@@ -143,10 +144,10 @@ fn merge_related_profiles(profiles: &mut HashMap<String, AppProfile>, query: &st
         .collect();
 
     for other_key in others {
-        if let Some(other) = profiles.remove(&other_key) {
-            if let Some(target) = profiles.get_mut(&canonical) {
-                merge_into(target, other);
-            }
+        if let Some(other) = profiles.remove(&other_key)
+            && let Some(target) = profiles.get_mut(&canonical)
+        {
+            merge_into(target, other);
         }
     }
 }
@@ -210,14 +211,20 @@ fn extract_bundle_id(record: &DecodedRecord) -> Option<String> {
     for (_, v) in &record.fields {
         if let Some(s) = v.as_str() {
             // Direct bundle ID as value (e.g. "dev.zed.Zed" appearing as a value)
-            if looks_like_bundle_id(s) && s.contains("com.") || s.contains("dev.") || s.contains("ch.") || s.contains("us.") || s.contains("org.") || s.contains("io.") {
+            if looks_like_bundle_id(s) && s.contains("com.")
+                || s.contains("dev.")
+                || s.contains("ch.")
+                || s.contains("us.")
+                || s.contains("org.")
+                || s.contains("io.")
+            {
                 return Some(s.to_string());
             }
             // Path-based extraction as last resort
-            if path_bundle.is_none() {
-                if let Some(bid) = extract_bundle_from_path(s) {
-                    path_bundle = Some(bid);
-                }
+            if path_bundle.is_none()
+                && let Some(bid) = extract_bundle_from_path(s)
+            {
+                path_bundle = Some(bid);
             }
         }
     }
@@ -382,20 +389,21 @@ fn classify_network(_ev: &str, record: &DecodedRecord, profile: &mut AppProfile)
 
     if profile.network.interface.is_empty() {
         for (_, v) in &record.fields {
-            if let Some(s) = v.as_str() {
-                if s == "WiFi" || s == "Cellular" || s == "PersonalHotspot" {
-                    profile.network.interface = s.to_string();
-                    break;
-                }
+            if let Some(s) = v.as_str()
+                && (s == "WiFi" || s == "Cellular" || s == "PersonalHotspot")
+            {
+                profile.network.interface = s.to_string();
+                break;
             }
         }
     }
     // Collect large numeric values as potential byte counts
     for (_, v) in &record.fields {
-        if let Some(n) = v.as_i64() {
-            if n > 1000 && !profile.network.bytes_values.contains(&n) {
-                profile.network.bytes_values.push(n);
-            }
+        if let Some(n) = v.as_i64()
+            && n > 1000
+            && !profile.network.bytes_values.contains(&n)
+        {
+            profile.network.bytes_values.push(n);
         }
     }
 }
@@ -404,21 +412,20 @@ fn classify_network(_ev: &str, record: &DecodedRecord, profile: &mut AppProfile)
 fn classify_hardware(ev: &str, record: &DecodedRecord, profile: &mut AppProfile) {
     // Memory footprint
     if ev.contains("memorytools.stats.footprint") {
-        if let Some(kb) = field_str(&record.fields, "bucketed_app_footprint_kb") {
-            if !profile.hardware.iter().any(|(k, _)| k == "Memory") {
-                profile.hardware.push(("Memory".into(), format!("{kb} KB")));
-            }
+        if let Some(kb) = field_str(&record.fields, "bucketed_app_footprint_kb")
+            && !profile.hardware.iter().any(|(k, _)| k == "Memory")
+        {
+            profile.hardware.push(("Memory".into(), format!("{kb} KB")));
         }
-        if let Some(kb) = field_str(&record.fields, "bucketed_app_neural_footprint_kb") {
-            if !profile
+        if let Some(kb) = field_str(&record.fields, "bucketed_app_neural_footprint_kb")
+            && !profile
                 .hardware
                 .iter()
                 .any(|(k, _)| k == "Neural Engine Memory")
-            {
-                profile
-                    .hardware
-                    .push(("Neural Engine Memory".into(), format!("{kb} KB")));
-            }
+        {
+            profile
+                .hardware
+                .push(("Neural Engine Memory".into(), format!("{kb} KB")));
         }
         return;
     }
@@ -437,23 +444,24 @@ fn classify_hardware(ev: &str, record: &DecodedRecord, profile: &mut AppProfile)
 
     // CPU model — look for chip names in field values
     for (_, v) in &record.fields {
-        if let Some(s) = v.as_str() {
-            if s.starts_with("M1") || s.starts_with("M2") || s.starts_with("M3") || s.starts_with("M4") {
-                if !profile.hardware.iter().any(|(k, _)| k == "CPU") {
-                    profile.hardware.push(("CPU".into(), s.to_string()));
-                }
-            }
+        if let Some(s) = v.as_str()
+            && (s.starts_with("M1")
+                || s.starts_with("M2")
+                || s.starts_with("M3")
+                || s.starts_with("M4"))
+            && !profile.hardware.iter().any(|(k, _)| k == "CPU")
+        {
+            profile.hardware.push(("CPU".into(), s.to_string()));
         }
     }
 
     // Thermal state
     for (_, v) in &record.fields {
-        if let Some(s) = v.as_str() {
-            if s == "Nominal" || s == "Fair" || s == "Serious" || s == "Critical" {
-                if !profile.hardware.iter().any(|(k, _)| k == "Thermal") {
-                    profile.hardware.push(("Thermal".into(), s.to_string()));
-                }
-            }
+        if let Some(s) = v.as_str()
+            && (s == "Nominal" || s == "Fair" || s == "Serious" || s == "Critical")
+            && !profile.hardware.iter().any(|(k, _)| k == "Thermal")
+        {
+            profile.hardware.push(("Thermal".into(), s.to_string()));
         }
     }
 }
